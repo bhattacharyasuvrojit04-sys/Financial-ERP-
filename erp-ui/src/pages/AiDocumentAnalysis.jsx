@@ -1,12 +1,14 @@
 import { useState } from "react";
 import Layout from "../components/Layout";
-import { uploadFinancialDocument } from "../services/api";
+import { uploadFinancialDocument, runPeerBenchmark } from "../services/api";
+import { BarChart, Bar, XAxis, YAxis, Tooltip,Legend, ResponsiveContainer } from "recharts";
 
 export default function AiDocumentAnalysis() {
 
   const [file, setFile] = useState(null);
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [benchmark, setBenchmark] = useState(null);
 
   const handleUpload = async () => {
 
@@ -36,38 +38,86 @@ export default function AiDocumentAnalysis() {
     }
   };
 
+  const handleBenchmark = async () => {
+    try {
+      const payload = {
+        industry: "technology",
+        assumptions: {
+          revenue_growth:10,
+          ebitda_margin:
+            results?.ratios?.ebitda_margin || 0,
+          capex_pct:
+            results?.ratios?.capex_pct || 0 
+        }
+      };
+      console.log("BENCHMARK PAYLOAD:", payload);
+      console.log(JSON.stringify(payload, null, 2))
+
+      const res = await runPeerBenchmark(payload);
+
+      console.log("BENCHMARK RESPONSE:");
+      console.log(res);
+
+      setBenchmark(res);
+
+    } catch (err) {
+      console.error("BENCHMARK ERROR:", err);
+  }
+  };
+
+  const ChartData = benchmark ? [
+    {
+      metric: "Revenue Growth",
+      company: benchmark.revenue_growth?.value ||0,
+      Industry: benchmark.revenue_growth?.peer_median ||0
+
+    },
+    {
+      metric: "EBITDA Margin",
+      company: benchmark.ebitda_margin?.value ||0,
+      Industry: benchmark.ebitda_margin?.peer_median ||0
+    },
+    {
+      metric: "Capex %",
+      company: benchmark.capex_pct?.value ||0,
+      Industry: benchmark.capex_pct?.peer_median ||0
+    }
+  ] : [];
+
   return (
-    <Layout title="AI Financial Analysis">
+  <Layout title="AI Financial Analysis">
+
+    <div
+      style={{
+        padding: "25px"
+      }}
+    >
+
+      {/* Upload Section */}
 
       <div
         className="card"
         style={{
           padding: "25px",
-          borderRadius: "12px"
+          borderRadius: "12px",
+          marginBottom: "25px"
         }}
       >
 
-        {/* HEADER */}
-        <div style={{ marginBottom: "25px" }}>
-          <h2 style={{ marginBottom: "10px" }}>
-            AI Financial Document Analysis
-          </h2>
+        <h2>AI Financial Document Analysis</h2>
 
-          <p style={{ color: "#666" }}>
-            Upload annual reports, 10-K filings, investor presentations,
-            or earnings call transcripts.
-          </p>
-        </div>
+        <p>
+          Upload annual reports, 10-K filings, investor presentations,
+          or earnings call transcripts.
+        </p>
 
-        {/* FILE INPUT */}
         <div
           style={{
             border: "2px dashed #d1d5db",
             padding: "30px",
             borderRadius: "12px",
             textAlign: "center",
-            marginBottom: "20px",
-            background: "#fafafa"
+            marginTop: "20px"
           }}
         >
 
@@ -78,172 +128,277 @@ export default function AiDocumentAnalysis() {
           />
 
           {file && (
-            <div style={{ marginTop: "15px" }}>
-              <strong>Selected:</strong> {file.name}
+            <div style={{ marginTop: "10px" }}>
+              Selected: {file.name}
             </div>
           )}
 
         </div>
 
-        {/* BUTTON */}
         <button
           onClick={handleUpload}
           disabled={loading}
           style={{
+            marginTop: "20px",
             padding: "12px 24px",
             background: "#2563eb",
             color: "white",
             border: "none",
-            borderRadius: "8px",
-            cursor: "pointer",
-            fontWeight: "600"
+            borderRadius: "8px"
           }}
         >
           {loading ? "Analyzing..." : "Analyze Financial Document"}
         </button>
 
-        {/* LOADING UI */}
-        {loading && (
+      </div>
+
+      {results && (
+
+        <>
+
+          {/* KPI CARDS */}
+
           <div
             style={{
-              marginTop: "30px",
-              padding: "20px",
-              background: "#f3f4f6",
-              borderRadius: "10px"
+              display: "grid",
+              gridTemplateColumns: "repeat(4,1fr)",
+              gap: "20px",
+              marginBottom: "25px"
             }}
           >
 
-            <h3>AI Processing Pipeline</h3>
-
-            <div style={{ marginTop: "15px" }}>
-              ✅ Extracting text from PDF
+            <div className="card">
+              <h4>Revenue</h4>
+              <h2>
+                {results.metrics?.revenue?.toLocaleString()}
+              </h2>
             </div>
 
-            <div style={{ marginTop: "10px" }}>
-              ✅ Creating embeddings
+            <div className="card">
+              <h4>EBITDA Margin</h4>
+              <h2>
+                {results.ratios?.ebitda_margin?.toFixed(2)}%
+              </h2>
             </div>
 
-            <div style={{ marginTop: "10px" }}>
-              🔄 AI financial analysis running
+            <div className="card">
+              <h4>Net Margin</h4>
+              <h2>
+                {results.ratios?.net_margin?.toFixed(2)}%
+              </h2>
             </div>
 
-            <div style={{ marginTop: "10px" }}>
-              ⏳ Generating assumptions
+            <div className="card">
+              <h4>Debt</h4>
+              <h2>
+                {results.metrics?.debt?.toLocaleString()}
+              </h2>
             </div>
 
           </div>
-        )}
 
-        {/* RESULTS */}
-        {results && (
-          <div style={{ marginTop: "40px" }}>
+          {/* AI COMMENTARY */}
 
-            <h2 style={{ marginBottom: "20px" }}>
-              AI Generated Assumptions
-            </h2>
+          <div
+            className="card"
+            style={{
+              padding: "25px",
+              marginBottom: "25px"
+            }}
+          >
 
-            {/* SAFE OBJECT.ENTRIES */}
-            {Object.entries(results?.assumptions || {}).map(([key, value]) => (
+            <h2>AI Commentary</h2>
 
-              <div
-                key={key}
-                style={{
-                  border: "1px solid #e5e7eb",
-                  padding: "20px",
-                  borderRadius: "12px",
-                  marginBottom: "15px",
-                  background: "white"
-                }}
-              >
+            <pre
+              style={{
+                whiteSpace: "pre-wrap",
+                fontFamily: "inherit"
+              }}
+            >
+              {results.commentary}
+            </pre>
 
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center"
-                  }}
-                >
+            <button
+              onClick={handleBenchmark}
+              style={{
+                marginTop: "20px",
+                padding: "12px 24px",
+                background: "#16a34a",
+                color: "white",
+                border: "none",
+                borderRadius: "8px"
+              }}
+            >
+              Run Peer Benchmark
+            </button>
 
-                  <div>
+          </div>
 
-                    <h3 style={{ marginBottom: "10px" }}>
-                      {formatName(key)}
-                    </h3>
+        </>
 
-                    <div style={{ color: "#666" }}>
-                      Suggested Value
-                    </div>
+      )}
 
-                    <div
-                      style={{
-                        fontSize: "28px",
-                        fontWeight: "700",
-                        marginTop: "5px"
-                      }}
-                    >
-                      {value?.value ?? "N/A"}
-                    </div>
+      {benchmark && (
 
-                  </div>
+        <>
 
-                  <div
-                    style={{
-                      textAlign: "right"
-                    }}
-                  >
+          {/* BAR CHART */}
 
-                    <div style={{ color: "#666" }}>
-                      Confidence
-                    </div>
+          <div
+            className="card"
+            style={{
+              padding: "25px",
+              marginBottom: "25px"
+            }}
+          >
 
-                    <div
-                      style={{
-                        fontSize: "24px",
-                        fontWeight: "700",
-                        color: "#16a34a"
-                      }}
-                    >
-                      {value?.confidence ?? 0}%
-                    </div>
+            <h2>Benchmark Comparison</h2>
 
-                  </div>
+            <ResponsiveContainer
+              width="100%"
+              height={350}
+            >
 
-                </div>
+              <BarChart data={ChartData}>
 
-                {/* ACTION BUTTONS */}
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "10px",
-                    marginTop: "20px"
-                  }}
-                >
+                <XAxis dataKey="metric" />
 
-                  <button style={acceptBtn}>
-                    Accept
-                  </button>
+                <YAxis />
 
-                  <button style={rejectBtn}>
-                    Reject
-                  </button>
+                <Tooltip />
 
-                  <button style={editBtn}>
-                    Override
-                  </button>
+                <Legend />
 
-                </div>
+                <Bar
+                  dataKey="company"
+                  fill="#2563eb"
+                  radius={[4, 4, 0, 0]}
+                />
+
+                <Bar
+                  dataKey="Industry"
+                  fill="#10b981"
+                  radius={[4, 4, 0, 0]}
+                />
+
+              </BarChart>
+
+            </ResponsiveContainer>
+
+          </div>
+
+          {/* PEER TABLE */}
+
+          <div
+            className="card"
+            style={{
+              padding: "25px",
+              marginBottom: "25px"
+            }}
+          >
+
+            <h2>Peer Benchmark Results</h2>
+
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse"
+              }}
+            >
+
+              <thead>
+
+                <tr>
+
+                  <th>Metric</th>
+
+                  <th>Company</th>
+
+                  <th>Median</th>
+
+                  <th>Position</th>
+
+                  <th>Difference</th>
+
+                </tr>
+
+              </thead>
+
+              <tbody>
+
+                {Object.entries(benchmark).map(
+                  ([metric, data]) => (
+
+                    <tr key={metric}>
+
+                      <td>{metric}</td>
+
+                      <td>{data.value}</td>
+
+                      <td>{data.peer_median}</td>
+
+                      <td>{data.position}</td>
+
+                      <td>{data.difference}</td>
+
+                    </tr>
+
+                  )
+                )}
+
+              </tbody>
+
+            </table>
+
+          </div>
+
+          {/* AI VERDICT */}
+
+          <div
+            className="card"
+            style={{
+              padding: "25px"
+            }}
+          >
+
+            <h2>AI Investment Verdict</h2>
+
+            {results?.ratios?.ebitda_margin > 25 ? (
+
+              <div>
+
+                <h1>🟢 BUY</h1>
+
+                <p>
+                  EBITDA Margin is above industry benchmark.
+                </p>
 
               </div>
 
-            ))}
+            ) : (
+
+              <div>
+
+                <h1>🟡 HOLD</h1>
+
+                <p>
+                  Performance is close to industry averages.
+                </p>
+
+              </div>
+
+            )}
 
           </div>
-        )}
 
-      </div>
+        </>
 
-    </Layout>
-  );
+      )}
+
+    </div>
+
+  </Layout>
+);
 }
 
 /* ================= BUTTON STYLES ================= */

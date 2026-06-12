@@ -11,6 +11,7 @@ import Dcf from "./pages/Dcf"
 import Transactions from "./pages/Transactions";
 import RatioAnalysis from "./pages/RatioAnalysis";
 import AiDocumentAnalysis from "./pages/AiDocumentAnalysis";
+import AiPitchDeck from "./pages/AiPitchDeck";
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
         <Route path= "/transactions" element={<Transactions />} />
         <Route path="/ratios" element={<RatioAnalysis />} />
         <Route path="/ai-analysis" element={<AiDocumentAnalysis />} />
+        <Route path="/ai-pitch-deck" element={<AiPitchDeck />} />
       </Routes>
     </BrowserRouter>
   );

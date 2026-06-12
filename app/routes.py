@@ -1,3 +1,4 @@
+import json
 import shutil
 
 from fastapi import APIRouter, Depends, Query, HTTPException, UploadFile, File
@@ -9,6 +10,14 @@ from app.AI.chunker import chunk_text
 from app.AI.embeddings import create_embeddings
 from app.AI.parser import extract_pdf_text
 from app.AI.vector_store import store_embeddings
+from app.service.financial_commentary import generate_commentary
+from app.service.financial_extractor import extract_financial_metrics
+from app.service.peer_benchmark import generate_peer_analysis
+from app.service.pitchdeck_generator import generate_pitch_deck
+from app.service.ppt_generator import built_pitch_deck
+from app.service.ratio_engine import calculate_document_ratios
+from app.Project_Finance.cashflow import generate_cashflows, calculate_irr, calculate_npv, calculate_dscr
+from app.Project_Finance.project_finance import ProjectInput
 from .db import SessionLocal
 from .schemas import *
 from .models import *
@@ -165,8 +174,16 @@ def cashflow(period: str = None, start_date: str = None, end_date: str = None, d
 @router.get("/balance-sheet")
 def balance_Sheet(period: str = None, start_date: str = None, end_date: str = None, db: Session = Depends(get_db)):
     if period:
-        return apply_periodic_report(db, period, get_balance_sheet)
-    return get_balance_sheet(db, start_date, end_date)
+        result = apply_periodic_report(db, period, get_balance_sheet)
+        print("\nPERIODIC RESULT:")
+        print(result)
+        print("\n")
+        return result
+    result =  get_balance_sheet(db, start_date, end_date)
+    print("\nNORMAL RESULT:")
+    print(result)
+    print("\n")
+    return result
 
 @router.post("/customer")
 def create_customer(data: CustomerCreate, db:Session = Depends(get_db)):
@@ -272,6 +289,7 @@ async def upload_financial_doc(file: UploadFile = File(...)):
 
     # STEP 1 — EXTRACT TEXT
     text = extract_pdf_text(file_path)
+   
 
     # STEP 2 — CHUNK
     chunks = chunk_text(text)
@@ -283,12 +301,277 @@ async def upload_financial_doc(file: UploadFile = File(...)):
     store_embeddings(chunks, embeddings)
 
     # STEP 5 — GPT ANALYSIS
-    analysis = analyze_financial_document(text)
+    metrics = extract_financial_metrics(text)
+    ratio = calculate_document_ratios(metrics)
 
     # STEP 6 — ASSUMPTIONS
-    assumptions = generate_assumptions(analysis)
+    commentary = generate_commentary(ratio)
+
+    return {
+         "status": "success",
+        "metrics": metrics,
+        "ratios": ratio,
+        "commentary": commentary
+    }
+
+@router.post("/ai/peer-benchmark")
+def peer_benchmark(data: BenchmarkInput):
+
+    print("\n===== BENCHMARK INPUT =====")
+    print(data.model_dump())
+    print("===========================\n")
+
+    result = generate_peer_analysis(
+        data.assumptions
+    )
+
+    print("\n===== BENCHMARK OUTPUT =====")
+    print(result)
+    print("============================\n")
+
+    return result
+
+@router.post("/ai/pitch-deck")
+async def pitch_deck(file: UploadFile = File(...)):
+
+    content = await file.read()
+
+    with open(
+        f"temp_{file.filename}", "wb"
+    ) as f:
+        f.write(content)
+
+    text = extract_pdf_text(f"temp_{file.filename}")
+
+    ai_result = generate_pitch_deck(text)
+
+    deck_data = json.loads(ai_result)
+
+    ppt_file = built_pitch_deck(
+        deck_data,
+        "pitch_deck.pptx"
+    )
 
     return {
         "status": "success",
-        "assumptions": assumptions
+        "ppt_file": ppt_file
+    }
+
+
+@router.post("/project-finance/analyze")
+def analyze_project_finance(project: ProjectInput):
+
+    projection = []
+
+    cashflows = [-project.capex]
+
+    debt_service_schedule = []
+
+    outstanding_debt = project.debt_amount
+
+    annual_principal = (
+        project.debt_amount /
+        project.loan_tenor
+    )
+
+    for year in range(1, project.project_life + 1):
+
+        tariff_year = (
+            project.tariff *
+            (1 + project.tariff_escalation / 100) ** (year - 1)
+        )
+
+        cuf_year = (
+            project.cuf *
+            (1 - project.degradation_rate / 100) ** (year - 1)
+        )
+
+        generation = (
+            project.capacity_mw
+            * 1000
+            * project.operating_hours
+            * (cuf_year / 100)
+        )
+
+        revenue = generation * tariff_year
+
+        opex = (
+            revenue
+            * (project.opex_pct / 100)
+            * (1 + project.opex_escalation / 100) ** (year - 1)
+        )
+
+        ebitda = revenue - opex
+
+        if year <= project.loan_tenor:
+
+            interest = (
+                outstanding_debt *
+                project.interest_rate /
+                100
+            )
+
+            principal = annual_principal
+
+            debt_service = (
+                principal +
+                interest
+            )
+
+            outstanding_debt -= principal
+
+        else:
+
+            interest = 0
+            principal = 0
+            debt_service = 0
+
+        dscr = (
+            ebitda / debt_service
+            if debt_service > 0
+            else None
+        )
+
+        equity_cf = (
+            ebitda -
+            debt_service
+        )
+
+        cashflows.append(equity_cf)
+
+        projection.append({
+
+            "year": year,
+
+            "generation_kwh":
+                round(generation, 2),
+
+            "tariff":
+                round(tariff_year, 2),
+
+            "revenue":
+                round(revenue, 2),
+
+            "opex":
+                round(opex, 2),
+
+            "ebitda":
+                round(ebitda, 2),
+
+            "principal":
+                round(principal, 2),
+
+            "interest":
+                round(interest, 2),
+
+            "debt_service":
+                round(debt_service, 2),
+
+            "dscr":
+                round(dscr, 2)
+                if dscr
+                else None,
+
+            "equity_cashflow":
+                round(equity_cf, 2)
+
+        })
+
+        debt_service_schedule.append({
+
+            "year": year,
+
+            "opening_balance":
+                round(
+                    outstanding_debt + principal,
+                    2
+                ),
+
+            "principal":
+                round(principal, 2),
+
+            "interest":
+                round(interest, 2),
+
+            "closing_balance":
+                round(
+                    outstanding_debt,
+                    2
+                )
+
+        })
+
+    irr = calculate_irr(cashflows)
+
+    npv = calculate_npv(
+        cashflows,
+        discount_rate=10
+    )
+
+    avg_dscr = sum(
+        row["dscr"]
+        for row in projection
+        if row["dscr"]
+    ) / len(
+        [
+            row
+            for row in projection
+            if row["dscr"]
+        ]
+    )
+
+    if avg_dscr > 1.40:
+
+        verdict = "Strongly Bankable"
+
+    elif avg_dscr > 1.20:
+
+        verdict = "Acceptable"
+
+    else:
+
+        verdict = "Weak"
+
+    return {
+
+        "project_name":
+            project.name,
+
+        "project_type":
+            project.project_type,
+
+        "capacity_mw":
+            project.capacity_mw,
+
+        "capex":
+            project.capex,
+
+        "debt":
+            project.debt_amount,
+
+        "equity":
+            project.capex -
+            project.debt_amount,
+
+        "irr":
+            round(irr, 2),
+
+        "npv":
+            round(npv, 2),
+
+        "average_dscr":
+            round(avg_dscr, 2),
+
+        "verdict":
+            verdict,
+
+        "projection":
+            projection,
+
+        "debt_schedule":
+            debt_service_schedule,
+
+        "cashflows":
+            cashflows
+
     }

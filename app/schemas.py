@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Any, Dict, Optional
 
 class TransactionCreate(BaseModel):
     description: str
@@ -45,4 +45,7 @@ class DCFOutput(BaseModel):
     pv_fcf: float
     yearly_fcf: float
     
+class BenchmarkInput(BaseModel):
+    industry: str
+    assumptions: Dict[str, Any]
     

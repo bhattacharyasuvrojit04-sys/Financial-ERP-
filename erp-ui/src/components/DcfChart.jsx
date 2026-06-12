@@ -14,7 +14,8 @@ export default function DcfChart({ data }) {
           <XAxis dataKey="year" />
           <YAxis />
           <Tooltip />
-          <Bar dataKey="fcf" />
+          <Bar dataKey="fcf"
+              fill="#2563eb" />
         </BarChart>
       </ResponsiveContainer>
     </div>

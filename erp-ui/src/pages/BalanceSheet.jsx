@@ -35,7 +35,24 @@ export default function BalanceSheet() {
     );
   }
 
-  const first = data[0]?.data || data[0];
+  const getAccounts = (section) => {
+
+  const accounts = new Set();
+
+  data.forEach((report) => {
+
+    const items =
+      (report.data || report)
+        .line_items?.[section] || {};
+
+    Object.keys(items).forEach(acc =>
+      accounts.add(acc)
+    );
+
+  });
+
+  return Array.from(accounts);
+};
 
   return (
     <Layout title="Balance Sheet">
@@ -86,7 +103,7 @@ export default function BalanceSheet() {
               </td>
             </tr>
 
-            {Object.keys(first?.line_items?.current_assets || {}).map((account) => (
+            {getAccounts("current_assets").map((account) => (
               <tr key={account}>
                 <td style={tdStyle}>
                   {formatName(account)}
@@ -109,7 +126,7 @@ export default function BalanceSheet() {
               </td>
             </tr>
 
-            {Object.keys(first?.line_items?.non_current_assets || {}).map((account) => (
+            {getAccounts("non_current_assets").map((account) => (
               <tr key={account}>
                 <td style={tdStyle}>
                   {formatName(account)}
@@ -143,7 +160,7 @@ export default function BalanceSheet() {
               </td>
             </tr>
 
-            {Object.keys(first?.line_items?.current_liabilities || {}).map((account) => (
+            {getAccounts("current_liabilities").map((account) => (
               <tr key={account}>
                 <td style={tdStyle}>
                   {formatName(account)}
@@ -166,7 +183,7 @@ export default function BalanceSheet() {
               </td>
             </tr>
 
-            {Object.keys(first?.line_items?.non_current_liabilities || {}).map((account) => (
+            {getAccounts("non_current_liabilities").map((account) => (
               <tr key={account}>
                 <td style={tdStyle}>
                   {formatName(account)}

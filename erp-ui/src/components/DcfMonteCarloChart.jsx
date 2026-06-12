@@ -40,7 +40,8 @@ export default function DcfMonteCarloChart({ data }) {
           <XAxis dataKey="range" />
           <YAxis />
           <Tooltip />
-          <Bar dataKey="count" />
+          <Bar dataKey="count"
+              fill="#03c976" />
         </BarChart>
       </ResponsiveContainer>
     </div>

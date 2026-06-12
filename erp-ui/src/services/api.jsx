@@ -170,3 +170,26 @@ export const uploadFinancialDocument = async(file) => {
     });
     return res.json();
 };
+
+export const runPeerBenchmark = async(payload) => {
+
+    const res = await fetch(`${BASE_URL}/ai/peer-benchmark`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload),
+    });
+    return res.json();
+}
+
+export async function generatePitchDeck(file){
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`${BASE_URL}/ai/generate-pitch-deck`, {
+        method: "POST",
+        body: formData
+    });
+    return response.json();
+}

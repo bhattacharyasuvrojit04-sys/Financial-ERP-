@@ -19,6 +19,7 @@ export default function Layout({ children, title }) {
         <a href="/ratios">Ratio Analysis</a>
         <a href="/transactions">Transactions</a>
         <a href="/ai-analysis">AI Analysis</a>
+        <a href="/ai-pitch-deck">AI Pitch Deck</a>
 
 
         {/* 🔥 NEW DCF FEATURE */}
