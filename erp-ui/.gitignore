@@ -31,3 +31,17 @@ build/
 __pycache__/
 *.pyc
 temp_*.pdf
+
+# Python
+__pycache__/
+*.pyc
+
+# SQLite
+*.db
+
+# Node
+node_modules/
+
+# Environment
+venv/
+.env

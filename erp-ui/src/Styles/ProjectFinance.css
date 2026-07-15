@@ -1,0 +1,390 @@
+.pf-page{
+    padding:20px;
+}
+
+.pf-container{
+    height:680px;
+    border:1px solid #dfe3e8;
+    border-radius:16px;
+    display:flex;
+    overflow:hidden;
+    background:white;
+}
+
+.pf-sidebar{
+    width:280px;
+    min-width:280px;
+    max-width:280px;
+
+    flex-shrink:0;
+
+    border-right:1px solid #e5e7eb;
+    padding:16px;
+    overflow:auto;
+}
+
+.pf-brand{
+    display:flex;
+    gap:10px;
+    margin-bottom:24px;
+}
+
+.pf-dot{
+    width:10px;
+    height:10px;
+    background:#0F6E56;
+    border-radius:50%;
+    margin-top:4px;
+}
+
+.pf-brand-label{
+    font-size:10px;
+    letter-spacing:2px;
+    color:#6b7280;
+}
+
+.pf-project-name{
+    font-size:15px;
+    font-weight:600;
+}
+
+.pf-project-subtitle{
+    font-size:12px;
+    color:#6b7280;
+}
+
+.pf-section{
+    margin-bottom:22px;
+}
+
+.pf-section-title{
+    font-size:10px;
+    letter-spacing:2px;
+    color:#6b7280;
+    margin-bottom:12px;
+}
+
+.pf-section label{
+    display:block;
+    font-size:12px;
+    margin-top:8px;
+}
+
+.pf-section input:not([type="checkbox"]){
+    width:100%;
+    margin-top:4px;
+    padding:8px;
+}
+
+.pf-chip-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+}
+
+.pf-chip{
+    background:#f5f7f8;
+    color:#374151;
+}
+
+.pf-save-btn{
+    width:100%;
+    background:#374151;
+}
+
+.pf-run-btn{
+    width:100%;
+    background:#0F6E56;
+    margin-bottom:10px;
+}
+
+.pf-workspace{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+
+    overflow:hidden;
+    min-width:0;
+}
+
+.pf-toolbar{
+    height:56px;
+    border-bottom:1px solid #e5e7eb;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:0 16px;
+}
+
+.pf-tabs{
+    display:flex;
+    gap:8px;
+}
+
+.pf-tabs button.active{
+    background:#0F6E56;
+}
+
+.pf-toolbar-right{
+    display:flex;
+    gap:8px;
+}
+
+.pf-kpis{
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    border-bottom:1px solid #e5e7eb;
+}
+
+.pf-kpi{
+    padding:16px;
+    border-right:1px solid #e5e7eb;
+}
+
+.pf-kpi-label{
+    font-size:10px;
+    color:#6b7280;
+    letter-spacing:1px;
+}
+
+.pf-kpi-value{
+    font-size:22px;
+    margin-top:6px;
+}
+
+.pf-kpi-sub{
+    font-size:11px;
+    color:#6b7280;
+}
+
+.pf-empty{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+}
+
+.pf-empty-icon{
+    font-size:48px;
+}
+
+.pf-empty-title{
+    margin-top:12px;
+    font-weight:600;
+}
+
+.pf-empty-subtitle{
+    color:#6b7280;
+    margin-top:4px;
+}
+
+.pf-table{
+    width:100%;
+    border-collapse:collapse;
+}
+
+.pf-table th{
+    position:sticky;
+    top:0;
+    background:white;
+    z-index:2;
+}
+
+.pf-table td,
+.pf-table th{
+    border-bottom:1px solid #e5e7eb;
+    padding:10px;
+    text-align:right;
+}
+
+.pf-sticky-label{
+    position:sticky;
+    left:0;
+    background:white;
+    text-align:left !important;
+    min-width:220px;
+}
+
+.pf-statement{
+    flex:1;
+    overflow-x:auto;
+    overflow-y:auto;
+    width:100%;
+}
+
+.pf-checkbox-row{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:8px;
+
+    margin:10px 0 16px;
+
+}
+
+.pf-checkbox-row input{
+
+    width:16px;
+
+    height:16px;
+
+    margin: 0;
+
+    flex-shrink:0;
+
+}
+
+.pf-checkbox-row label{
+
+    margin:0;
+    font-size:13px;
+    font-weight:500;
+    cursor:pointer;
+
+}
+
+.pf-drawdown-header,
+.pf-drawdown-row{
+
+    display:grid;
+
+    grid-template-columns:
+        65px
+        70px
+        110px
+        40px;
+
+    gap:8px;
+
+    align-items:center;
+
+}
+
+.pf-drawdown-header span{
+
+    text-align:center;
+
+    font-size:12px;
+
+    font-weight:600;
+
+}
+
+.pf-drawdown-row{
+
+    display:grid;
+
+    grid-template-columns:
+        60px
+        70px
+        1fr
+        40px;
+
+    gap:8px;
+
+    margin-bottom:10px;
+
+    align-items:center;
+
+}
+
+.pf-small-input{
+
+    width:100%;
+
+}
+
+.pf-large-input{
+
+    width:100%;
+
+}
+
+.pf-drawdown-row button{
+
+    width:30px;
+
+    height:30px;
+
+    border:none;
+
+    border-radius:6px;
+
+    background:#d9534f;
+
+    color:white;
+
+    cursor:pointer;
+
+    font-weight:bold;
+
+}
+
+.pf-drawdown-row button:hover{
+
+    background:#c9302c;
+
+}
+
+.pf-delete-btn{
+
+    width:32px;
+    height:32px;
+
+    border:none;
+
+    border-radius:8px;
+
+    background:#f4f4f4;
+
+    color:#666;
+
+    cursor:pointer;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    transition:.2s;
+
+}
+
+.pf-delete-btn:hover{
+
+    background:#ffe8e8;
+    color:#d92d20;
+
+}
+
+.pf-add-btn{
+
+    margin-top:8px;
+
+    width:100%;
+
+    padding:8px;
+
+    border:1px dashed #0F6E56;
+
+    background:white;
+
+    color:#0F6E56;
+
+    border-radius:8px;
+
+    font-weight:600;
+
+    cursor:pointer;
+
+    transition:.2s;
+
+}
+
+.pf-add-btn:hover{
+
+    background:#f2faf7;
+
+}

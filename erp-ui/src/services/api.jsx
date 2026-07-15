@@ -193,3 +193,104 @@ export async function generatePitchDeck(file){
     });
     return response.json();
 }
+
+export async function saveProject(payload) {
+
+    const response = await fetch (`${BASE_URL}/project-finance/project`, {
+        method: "POST",
+        headers: {
+             "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+    });
+
+    if (!response.ok){
+        const errorText = await response.text();
+
+        console.error(errorText);
+
+        throw new Error(errorText);
+    }
+    
+    return response.json();
+}
+
+export async function analyzeSavedProject(projectId) {
+
+    const response = await fetch(`${BASE_URL}/project-finance/project/${projectId}/analyze`, {
+        method: "POST"
+    });
+    
+    if (!response.ok){
+        throw new Error("Analysis Failed");
+    }
+
+    return response.json();
+
+}
+
+export async function getProjects() {
+
+    const response = await fetch (`${BASE_URL}/project-finance/projects`);
+
+    if (!response.ok) {
+        throw new Error("Failed to load projects");
+    }
+    return response.json();
+}
+
+export async function getProject(id) {
+
+    const response = await fetch(
+        `${BASE_URL}/project-finance/project/${id}`
+    );
+
+    return response.json();
+}
+
+export async function updateProject(
+    id,
+    payload
+) {
+
+    const response = await fetch(
+
+        `${BASE_URL}/project-finance/project/${id}`,
+
+        {
+            method: "PUT",
+
+            headers: {
+                "Content-Type":
+                    "application/json"
+            },
+
+            body:
+                JSON.stringify(payload)
+        }
+
+    );
+
+    return response.json();
+
+}
+
+export async function analyzeProject(payload){
+
+    const response = await fetch(
+        `${BASE_URL}/project-finance/analyze`,
+        {
+            method:"POST",
+            headers:{
+                "Content-Type":"application/json"
+            },
+            body:JSON.stringify(payload)
+        }
+    );
+
+    if(!response.ok){
+        throw new Error("Analysis Failed");
+    }
+
+    return response.json();
+}

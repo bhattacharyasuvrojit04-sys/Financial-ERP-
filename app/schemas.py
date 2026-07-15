@@ -48,4 +48,9 @@ class DCFOutput(BaseModel):
 class BenchmarkInput(BaseModel):
     industry: str
     assumptions: Dict[str, Any]
+
+
+class DepreciationRequest(BaseModel):
+    asset_name: str
+    amount: float
     

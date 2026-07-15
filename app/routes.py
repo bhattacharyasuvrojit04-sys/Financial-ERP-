@@ -1,6 +1,7 @@
 import json
+import os
 import shutil
-
+import copy
 from fastapi import APIRouter, Depends, Query, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 
@@ -16,8 +17,9 @@ from app.service.peer_benchmark import generate_peer_analysis
 from app.service.pitchdeck_generator import generate_pitch_deck
 from app.service.ppt_generator import built_pitch_deck
 from app.service.ratio_engine import calculate_document_ratios
-from app.Project_Finance.cashflow import generate_cashflows, calculate_irr, calculate_npv, calculate_dscr
 from app.Project_Finance.project_finance import ProjectInput
+from app.Project_Finance.project_statement import build_project_statement
+from app.Project_Finance.Project import *
 from .db import SessionLocal
 from .schemas import *
 from .models import *
@@ -157,8 +159,15 @@ def driver_forecast(periods: int = 12, db: Session = Depends(get_db)):
     return forecast_driver_model(db, periods)
 
 @router.post("/depreciation")
-def depreciation(asset_name: str, amount: float, db: Session = Depends(get_db)):
-    return apply_depreciation(db, asset_name, amount)
+def depreciation(
+    request: DepreciationRequest,
+    db: Session = Depends(get_db)
+):
+    return apply_depreciation(
+        db,
+        request.asset_name,
+        request.amount
+    )
 
 
 @router.get("/ebitda")
@@ -357,221 +366,435 @@ async def pitch_deck(file: UploadFile = File(...)):
         "ppt_file": ppt_file
     }
 
+@router.post("/project-finance/statements")
+def project_statements(project: ProjectInput):
 
-@router.post("/project-finance/analyze")
-def analyze_project_finance(project: ProjectInput):
-
-    projection = []
-
-    cashflows = [-project.capex]
-
-    debt_service_schedule = []
-
-    outstanding_debt = project.debt_amount
-
-    annual_principal = (
-        project.debt_amount /
-        project.loan_tenor
+    statements = build_project_statement(
+        project
     )
 
-    for year in range(1, project.project_life + 1):
+    return statements
 
-        tariff_year = (
-            project.tariff *
-            (1 + project.tariff_escalation / 100) ** (year - 1)
+@router.post("/project-finance/project")
+def save_project(
+    project: ProjectInput,
+    db: Session = Depends(get_db)
+):
+
+    db_project = Project(
+
+
+    name=project.name,
+    project_type=project.project_type,
+
+    project_life=project.project_life,
+
+    tax_rate=project.tax_rate,
+    discount_rate=project.discount_rate,
+
+    debt_amount=project.debt_amount,
+    interest_rate=project.interest_rate,
+    loan_tenor=project.loan_tenor,
+
+    moratorium_months=project.moratorium_months,
+    repayment_frequency=project.repayment_frequency,
+    repayment_type=project.repayment_type,
+    interest_type=project.interest_type,
+    interest_capitalized=project.interest_capitalized,
+
+    depreciation_years=project.depreciation_years
+
+    )
+
+    db.add(db_project)
+
+    db.commit()
+
+    db.refresh(db_project)
+#============Revenue====================
+    for item in project.revenue_items:
+
+        db.add(
+            RevenueItem(
+                project_id=db_project.id,
+
+                name=item.name,
+                revenue_type=item.revenue_type,
+
+                growth_rate=item.growth_rate,
+                amount=item.amount,
+
+                capacity_mw=item.capacity_mw,
+                operating_hours=item.operating_hours,
+                cuf=item.cuf,
+
+                tariff=item.tariff,
+                tariff_escalation=item.tariff_escalation,
+
+                degradation_rate=item.degradation_rate,
+
+                rooms=item.rooms,
+                occupancy_pct=item.occupancy_pct,
+                adr=item.adr
+            )
+        )
+#=============Opex==============================
+    for item in project.opex_items:
+
+        db.add(
+            OpexItem(
+                project_id=db_project.id,
+
+                name=item.name,
+                amount=item.amount,
+
+                escalation_rate=item.escalation_rate
+            )
         )
 
-        cuf_year = (
-            project.cuf *
-            (1 - project.degradation_rate / 100) ** (year - 1)
+    for item in project.capex_items:
+
+        db.add(
+            CapexItem(
+                project_id=db_project.id,
+
+                name=item.name,
+                amount=item.amount
+            )
         )
 
-        generation = (
-            project.capacity_mw
-            * 1000
-            * project.operating_hours
-            * (cuf_year / 100)
+    for item in project.asset_items:
+
+        db.add(
+            AssetItem(
+                project_id=db_project.id,
+
+                name=item.name,
+                amount=item.amount,
+
+                growth_rate=item.growth_rate,
+                asset_type=item.asset_type
+            )
         )
 
-        revenue = generation * tariff_year
+    for item in project.liability_items:
 
-        opex = (
-            revenue
-            * (project.opex_pct / 100)
-            * (1 + project.opex_escalation / 100) ** (year - 1)
+        db.add(
+            LiabilityItem(
+                project_id=db_project.id,
+
+                name=item.name,
+                amount=item.amount,
+
+                growth_rate=item.growth_rate
+            )
         )
 
-        ebitda = revenue - opex
+    for item in project.equity_items:
 
-        if year <= project.loan_tenor:
+        db.add(
+            EquityItem(
+                project_id=db_project.id,
 
-            interest = (
-                outstanding_debt *
-                project.interest_rate /
-                100
+                name=item.name,
+                amount=item.amount,
+
+                growth_rate=item.growth_rate
+            )
+        )
+
+    db.add(
+        WorkingCapital(
+            project_id=db_project.id,
+
+            receivable_days=
+                project.working_capital.receivable_days,
+
+            payable_days=
+                project.working_capital.payable_days,
+
+            inventory_days=
+                project.working_capital.inventory_days
+        )
+    )
+
+    for item in project.debt_drawdowns:
+
+        db.add(
+
+            DebtDrawdown(
+
+                project_id=
+                    db_project.id,
+
+                year=item.year,
+
+                drawdown_amount=
+                    item.drawdown_amount,
+                
+                drawdown_months=
+                    item.drawdown_months
+                    
+
             )
 
-            principal = annual_principal
-
-            debt_service = (
-                principal +
-                interest
-            )
-
-            outstanding_debt -= principal
-
-        else:
-
-            interest = 0
-            principal = 0
-            debt_service = 0
-
-        dscr = (
-            ebitda / debt_service
-            if debt_service > 0
-            else None
         )
+    
 
-        equity_cf = (
-            ebitda -
-            debt_service
-        )
-
-        cashflows.append(equity_cf)
-
-        projection.append({
-
-            "year": year,
-
-            "generation_kwh":
-                round(generation, 2),
-
-            "tariff":
-                round(tariff_year, 2),
-
-            "revenue":
-                round(revenue, 2),
-
-            "opex":
-                round(opex, 2),
-
-            "ebitda":
-                round(ebitda, 2),
-
-            "principal":
-                round(principal, 2),
-
-            "interest":
-                round(interest, 2),
-
-            "debt_service":
-                round(debt_service, 2),
-
-            "dscr":
-                round(dscr, 2)
-                if dscr
-                else None,
-
-            "equity_cashflow":
-                round(equity_cf, 2)
-
-        })
-
-        debt_service_schedule.append({
-
-            "year": year,
-
-            "opening_balance":
-                round(
-                    outstanding_debt + principal,
-                    2
-                ),
-
-            "principal":
-                round(principal, 2),
-
-            "interest":
-                round(interest, 2),
-
-            "closing_balance":
-                round(
-                    outstanding_debt,
-                    2
-                )
-
-        })
-
-    irr = calculate_irr(cashflows)
-
-    npv = calculate_npv(
-        cashflows,
-        discount_rate=10
-    )
-
-    avg_dscr = sum(
-        row["dscr"]
-        for row in projection
-        if row["dscr"]
-    ) / len(
-        [
-            row
-            for row in projection
-            if row["dscr"]
-        ]
-    )
-
-    if avg_dscr > 1.40:
-
-        verdict = "Strongly Bankable"
-
-    elif avg_dscr > 1.20:
-
-        verdict = "Acceptable"
-
-    else:
-
-        verdict = "Weak"
+    db.commit()
 
     return {
-
-        "project_name":
-            project.name,
-
-        "project_type":
-            project.project_type,
-
-        "capacity_mw":
-            project.capacity_mw,
-
-        "capex":
-            project.capex,
-
-        "debt":
-            project.debt_amount,
-
-        "equity":
-            project.capex -
-            project.debt_amount,
-
-        "irr":
-            round(irr, 2),
-
-        "npv":
-            round(npv, 2),
-
-        "average_dscr":
-            round(avg_dscr, 2),
-
-        "verdict":
-            verdict,
-
-        "projection":
-            projection,
-
-        "debt_schedule":
-            debt_service_schedule,
-
-        "cashflows":
-            cashflows
-
+        "project_id": db_project.id,
+        "message": "Project Saved"
     }
+    
+@router.get("/project-finance/project/{project_id}")
+
+def get_project(project_id: int, db:Session = Depends(get_db)):
+
+    project = (db.query(Project).filter(Project.id == project_id).first())
+
+    print("Current working directory:", os.getcwd())
+    print("Database path:", os.path.abspath("erp.db"))
+    print(Project.__table__.columns.keys())
+
+    if not project:
+        return{
+            "error": "Project not found"
+        }
+    return project
+
+@router.post("/project-finance/project/{project_id}/analyze")
+
+def analyse_saved_project(project_id: int, db: Session = Depends(get_db)):
+    project = (db.query(Project).filter(Project.id == project_id).first())
+
+    if not project:
+        return {
+            "error": "Project not found"
+        }
+    
+    result = build_project_statement(project)
+
+    return result 
+
+@router.get("/project-finance/projects")
+def get_projects(db:Session = Depends(get_db)):
+    projects = db.query(Project).all()
+
+    return projects
+
+@router.get("/project-finance/project/{project_id}")
+def get_project(
+    project_id: int,
+    db: Session = Depends(get_db)
+):
+
+    project = (
+        db.query(Project)
+        .filter(Project.id == project_id)
+        .first()
+    )
+
+    return project
+
+@router.put("/project-finance/project/{project_id}")
+def update_project(
+    project_id: int,
+    data: ProjectInput,
+    db: Session = Depends(get_db)
+):
+
+    project = (
+        db.query(Project)
+        .filter(Project.id == project_id)
+        .first()
+    )
+
+    if not project:
+        raise HTTPException(
+            status_code=404,
+            detail="Project not found"
+        )
+
+    # ------------------
+    # Basic Fields
+    # ------------------
+
+    project.name = data.name
+    project.project_type = data.project_type
+
+    project.project_life = data.project_life
+
+    project.tax_rate = data.tax_rate
+    project.discount_rate = data.discount_rate
+
+    project.debt_amount = data.debt_amount
+    project.interest_rate = data.interest_rate
+    project.loan_tenor = data.loan_tenor
+
+    project.moratorium_months = data.moratorium_months
+    project.repayment_frequency = data.repayment_frequency
+    project.repayment_type = data.repayment_type
+    project.interest_type = data.interest_type
+    project.interest_capitalized = data.interest_capitalized
+    project.depreciation_years = data.depreciation_years
+
+    # ------------------
+    # Delete old children
+    # ------------------
+
+    project.revenue_items.clear()
+    project.opex_items.clear()
+    project.capex_items.clear()
+
+    project.asset_items.clear()
+    project.liability_items.clear()
+    project.equity_items.clear()
+
+    # ------------------
+    # Revenue
+    # ------------------
+
+    for item in data.revenue_items:
+
+        project.revenue_items.append(
+
+            RevenueItem(
+
+                name=item.name,
+                revenue_type=item.revenue_type,
+
+                growth_rate=item.growth_rate,
+                amount=item.amount,
+
+                capacity_mw=item.capacity_mw,
+                operating_hours=item.operating_hours,
+                cuf=item.cuf,
+
+                tariff=item.tariff,
+                tariff_escalation=item.tariff_escalation,
+
+                degradation_rate=item.degradation_rate,
+
+                rooms=item.rooms,
+                occupancy_pct=item.occupancy_pct,
+                adr=item.adr
+            )
+        )
+
+    # ------------------
+    # Opex
+    # ------------------
+
+    for item in data.opex_items:
+
+        project.opex_items.append(
+
+            OpexItem(
+
+                name=item.name,
+                amount=item.amount,
+                escalation_rate=item.escalation_rate
+            )
+        )
+
+    # ------------------
+    # Capex
+    # ------------------
+
+    for item in data.capex_items:
+
+        project.capex_items.append(
+
+            CapexItem(
+
+                name=item.name,
+                amount=item.amount
+            )
+        )
+
+    # ------------------
+    # Assets
+    # ------------------
+
+    for item in data.asset_items:
+
+        project.asset_items.append(
+
+            AssetItem(
+
+                name=item.name,
+                amount=item.amount,
+
+                growth_rate=item.growth_rate,
+                asset_type=item.asset_type
+            )
+        )
+
+    # ------------------
+    # Liabilities
+    # ------------------
+
+    for item in data.liability_items:
+
+        project.liability_items.append(
+
+            LiabilityItem(
+
+                name=item.name,
+                amount=item.amount,
+
+                growth_rate=item.growth_rate
+            )
+        )
+
+    # ------------------
+    # Equity
+    # ------------------
+
+    for item in data.equity_items:
+
+        project.equity_items.append(
+
+            EquityItem(
+
+                name=item.name,
+                amount=item.amount,
+
+                growth_rate=item.growth_rate
+            )
+        )
+
+    # ------------------
+    # Working Capital
+    # ------------------
+
+    if not project.working_capital:
+
+        project.working_capital = WorkingCapital()
+
+    project.working_capital.receivable_days = (
+        data.working_capital.receivable_days
+    )
+
+    project.working_capital.payable_days = (
+        data.working_capital.payable_days
+    )
+
+    project.working_capital.inventory_days = (
+        data.working_capital.inventory_days
+    )
+
+    db.commit()
+
+    db.refresh(project)
+
+    return project
+
+@router.post("/project-finance/analyze")
+def analyze_project(project: ProjectInput):
+
+    result = build_project_statement(project)
+    
+    return result

@@ -17,9 +17,11 @@ export default function Layout({ children, title }) {
         <Link to="/cashflow">Cash Flow</Link>
         <Link to="/balance-sheet">Balance Sheet</Link>
         <a href="/ratios">Ratio Analysis</a>
+        <Link to="/project-finance">Project Finance</Link>
         <a href="/transactions">Transactions</a>
         <a href="/ai-analysis">AI Analysis</a>
         <a href="/ai-pitch-deck">AI Pitch Deck</a>
+
 
 
         {/* 🔥 NEW DCF FEATURE */}
