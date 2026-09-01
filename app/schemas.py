@@ -53,4 +53,32 @@ class BenchmarkInput(BaseModel):
 class DepreciationRequest(BaseModel):
     asset_name: str
     amount: float
+
+# ============================================================
+# ACCOUNTING
+# ============================================================
+
+class AccountCreate(BaseModel):
+
+    name: str
+
+    group_name: str
+
+
+class JournalLineCreate(BaseModel):
+
+    account_id: int
+
+    debit: float = 0
+
+    credit: float = 0
+
+
+class JournalEntryCreate(BaseModel):
+
+    description: str
+
+    date: Optional[str] = None
+
+    lines: list[JournalLineCreate]
     

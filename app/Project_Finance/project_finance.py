@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Optional
 
 class RevenueItem(BaseModel):
 
@@ -42,6 +43,22 @@ class RevenueItem(BaseModel):
 
     other_revenue_pct: float = 0
 
+class COGSItemInput(BaseModel):
+
+    name: str
+
+    cogs_industry: str = "generic"
+
+    cogs_type: str
+
+    amount: float = 0
+
+    growth_rate: float = 0
+
+    cost_per_kwh: float = 0
+
+    cost_per_room: float = 0
+
 
 class OpexItemInput(BaseModel):
     name: str
@@ -49,9 +66,49 @@ class OpexItemInput(BaseModel):
     escalation_rate: float
 
 
-class CapexItemInput(BaseModel):
-    name: str
-    amount: float
+class FixedAssetBase(BaseModel):
+
+    asset_name: str
+
+    asset_category: str
+
+    purchase_year: int
+
+    purchase_cost: float
+
+    useful_life: int
+
+    depreciation_rate: float
+    
+    depreciation_method: str = "SLM"
+
+    salvage_value: float = 0
+
+    is_land: bool = False
+
+    sale_year: Optional[int] = None
+
+    sale_value: float = 0
+
+    notes: Optional[str] = None
+
+
+class FixedAssetCreate(FixedAssetBase):
+    pass
+
+
+class FixedAssetUpdate(FixedAssetBase):
+    pass
+
+
+class FixedAssetRead(FixedAssetBase):
+
+    id: int
+
+    project_id: int
+
+    class Config:
+        from_attributes = True
 
 class AssetItem(BaseModel):
     name: str
@@ -75,11 +132,21 @@ class WorkingCapitalInput(BaseModel):
     payable_days: float
     inventory_days: float
 
+    prepaid_expenses: float = 0
+    prepaid_growth_rate: float = 0
+
+    other_current_assets: float = 0
+    other_current_assets_growth_rate: float = 0
+
+    other_current_liabilities: float = 0
+    other_current_liabilities_growth_rate: float = 0
+
 class DebtDrawdown(BaseModel):
 
     year: int
     drawdown_amount: float
     drawdown_months: int
+
 
 
 class ProjectInput(BaseModel):
@@ -104,9 +171,11 @@ class ProjectInput(BaseModel):
 
     revenue_items: list[RevenueItem]
 
+    cogs_items: list[COGSItemInput] = []
+
     opex_items: list[OpexItemInput]
 
-    capex_items: list[CapexItemInput]
+    fixed_assets: list[FixedAssetCreate]
 
     asset_items: list[AssetItem]
 

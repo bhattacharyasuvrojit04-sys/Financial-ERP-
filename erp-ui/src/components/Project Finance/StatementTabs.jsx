@@ -1,16 +1,17 @@
-import { useState } from "react";
-
 import IncomeStatement from "./Statements/IncomeStatementP";
 import BalanceSheet from "./Statements/BalanceSheetP";
 import CashFlow from "./Statements/CashFlowP";
 import DebtSchedule from "./Statements/DebtScheduleP";
+import RevenueSchedule from "./RevenueSchedule";
 
 export default function StatementTabs({
-    result
+    result,
+    activeTab,
+    project,
+    setActiveTab
 }) {
 
-    const [tab, setTab] =
-        useState("income");
+    
 
     return (
 
@@ -20,10 +21,10 @@ export default function StatementTabs({
 
                 <button
                     onClick={() =>
-                        setTab("income")
+                        setActiveTab("income")
                     }
                     className={
-                        tab === "income"
+                        activeTab === "income"
                         ? "active"
                         : ""
                     }
@@ -33,10 +34,10 @@ export default function StatementTabs({
 
                 <button
                     onClick={() =>
-                        setTab("balance")
+                        setActiveTab("balance")
                     }
                     className={
-                        tab === "balance"
+                        activeTab === "balance"
                         ? "active"
                         : ""
                     }
@@ -46,10 +47,10 @@ export default function StatementTabs({
 
                 <button
                     onClick={() =>
-                        setTab("cashflow")
+                        setActiveTab("cashflow")
                     }
                     className={
-                        tab === "cashflow"
+                        activeTab === "cashflow"
                         ? "active"
                         : ""
                     }
@@ -58,11 +59,22 @@ export default function StatementTabs({
                 </button>
 
                 <button
+                    onClick={() => setActiveTab("revenue")}
+                    className={
+                        activeTab === "revenue"
+                            ? "active"
+                            : ""
+                    }
+                >
+                    Revenue Schedule
+                </button>
+
+                <button
                     onClick={() =>
-                        setTab("debt")
+                        setActiveTab("debt")
                     }
                     className={
-                        tab === "debt"
+                        activeTab === "debt"
                         ? "active"
                         : ""
                     }
@@ -70,31 +82,51 @@ export default function StatementTabs({
                     Debt Schedule
                 </button>
 
+                <button
+                    onClick={() =>
+                        setActiveTab("asset")
+                    }
+                    className={
+                        activeTab === "asset"
+                            ? "active"
+                            : ""
+                    }
+                >
+                    Asset Schedule
+                </button>
+
             </div>
 
             {
-                tab === "income" &&
+                activeTab === "income" &&
                 <IncomeStatement
                     data={result?.projection}
                 />
             }
 
             {
-                tab === "balance" &&
+                activeTab === "balance" &&
                 <BalanceSheet
                     data={result?.projection}
                 />
             }
 
             {
-                tab === "cashflow" &&
+                activeTab === "cashflow" &&
                 <CashFlow
                     data={result?.projection}
                 />
             }
 
+            {activeTab === "revenue" && (
+                <RevenueSchedule
+                    projection={result?.projection}
+                    project={project}
+                />
+            )}
+
             {
-                tab === "debt" &&
+                activeTab === "debt" &&
                 <DebtSchedule
                     data={result?.debt_schedule}
                 />

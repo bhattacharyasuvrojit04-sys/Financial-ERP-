@@ -1,30 +1,19 @@
-export default function BalanceSheet({
-    data
-}) {
+import { formatFinancialNumber } from "../../../utils/formatNumber";
+
+export default function BalanceSheet({ data, displayUnit }) {
 
     if (!data?.length) {
         return null;
     }
 
     const assetKeys =
-        Object.keys(
-            data[0].asset_breakdown || {}
-        );
+        Object.keys(data[0].asset_breakdown || {});
 
     const liabilityKeys =
-        Object.keys(
-            data[0].liability_breakdown || {}
-        );
+        Object.keys(data[0].liability_breakdown || {});
 
     const equityKeys =
-        Object.keys(
-            data[0].equity_breakdown || {}
-        );
-
-    const fmt = (v) =>
-        `${Math.round(
-            Number(v || 0) / 1000000
-        ).toLocaleString()} M`;
+        Object.keys(data[0].equity_breakdown || {});
 
     return (
 
@@ -54,7 +43,9 @@ export default function BalanceSheet({
 
                 <tbody>
 
-                    {/* ASSETS */}
+                    {/* =========================
+                        ASSETS
+                    ========================= */}
 
                     <tr>
 
@@ -78,18 +69,18 @@ export default function BalanceSheet({
                             {data.map(year => (
 
                                 <td key={year.year}>
-                                    {fmt(
-                                        year.asset_breakdown?.[key]
+                                    {formatFinancialNumber(
+                                        year.asset_breakdown?.[key], displayUnit
                                     )}
                                 </td>
 
                             ))}
 
                         </tr>
+
                     ))}
 
-
-                    <tr>
+                    <tr className="pf-row-total">
 
                         <td className="pf-sticky-label">
                             <b>Total Assets</b>
@@ -99,8 +90,8 @@ export default function BalanceSheet({
 
                             <td key={year.year}>
                                 <b>
-                                    {fmt(
-                                        year.total_assets
+                                    {formatFinancialNumber(
+                                        year.total_assets, displayUnit
                                     )}
                                 </b>
                             </td>
@@ -109,7 +100,9 @@ export default function BalanceSheet({
 
                     </tr>
 
-                    {/* LIABILITIES */}
+                    {/* =========================
+                        LIABILITIES
+                    ========================= */}
 
                     <tr>
 
@@ -133,8 +126,8 @@ export default function BalanceSheet({
                             {data.map(year => (
 
                                 <td key={year.year}>
-                                    {fmt(
-                                        year.liability_breakdown?.[key]
+                                    {formatFinancialNumber(
+                                        year.liability_breakdown?.[key], displayUnit
                                     )}
                                 </td>
 
@@ -144,7 +137,7 @@ export default function BalanceSheet({
 
                     ))}
 
-                    <tr>
+                    <tr className="pf-row-total">
 
                         <td className="pf-sticky-label">
                             <b>Total Liabilities</b>
@@ -154,8 +147,8 @@ export default function BalanceSheet({
 
                             <td key={year.year}>
                                 <b>
-                                    {fmt(
-                                        year.total_liabilities
+                                    {formatFinancialNumber(
+                                        year.total_liabilities, displayUnit
                                     )}
                                 </b>
                             </td>
@@ -164,7 +157,9 @@ export default function BalanceSheet({
 
                     </tr>
 
-                    {/* EQUITY */}
+                    {/* =========================
+                        EQUITY
+                    ========================= */}
 
                     <tr>
 
@@ -188,8 +183,8 @@ export default function BalanceSheet({
                             {data.map(year => (
 
                                 <td key={year.year}>
-                                    {fmt(
-                                        year.equity_breakdown?.[key]
+                                    {formatFinancialNumber(
+                                        year.equity_breakdown?.[key], displayUnit
                                     )}
                                 </td>
 
@@ -199,7 +194,7 @@ export default function BalanceSheet({
 
                     ))}
 
-                    <tr>
+                    <tr className="pf-row-total">
 
                         <td className="pf-sticky-label">
                             <b>Total Equity</b>
@@ -209,8 +204,8 @@ export default function BalanceSheet({
 
                             <td key={year.year}>
                                 <b>
-                                    {fmt(
-                                        year.total_equity
+                                    {formatFinancialNumber(
+                                        year.total_equity, displayUnit
                                     )}
                                 </b>
                             </td>
@@ -219,7 +214,9 @@ export default function BalanceSheet({
 
                     </tr>
 
-                    {/* CHECK */}
+                    {/* =========================
+                        CHECK
+                    ========================= */}
 
                     <tr>
 
@@ -229,9 +226,18 @@ export default function BalanceSheet({
 
                         {data.map(year => (
 
-                            <td key={year.year}>
-                                {fmt(
-                                    year.balance_sheet_gap
+                            <td
+                                key={year.year}
+                                className={
+                                    Number(year.balance_sheet_gap) < 0
+                                        ? "pf-negative"
+                                        : Number(year.balance_sheet_gap) > 0
+                                        ? "pf-positive"
+                                        : ""
+                                }
+                            >
+                                {formatFinancialNumber(
+                                    year.balance_sheet_gap, displayUnit
                                 )}
                             </td>
 

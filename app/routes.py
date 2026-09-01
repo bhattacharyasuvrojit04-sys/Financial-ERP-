@@ -19,6 +19,10 @@ from app.service.ppt_generator import built_pitch_deck
 from app.service.ratio_engine import calculate_document_ratios
 from app.Project_Finance.project_finance import ProjectInput
 from app.Project_Finance.project_statement import build_project_statement
+from app.Project_Finance.asset_schedule import build_asset_schedule
+from app.Project_Finance.returns import calculate_project_returns
+from app.Project_Finance.project_finance_excel import build_project_finance_excel
+from app.Project_Finance.dcf import calculate_project_dcf
 from app.Project_Finance.Project import *
 from .db import SessionLocal
 from .schemas import *
@@ -37,8 +41,10 @@ from .services import (
     get_balance_sheet,
     create_invoice,
     get_time_series,
-    pay_invoice,get_pnl_periodic, get_pnl_hierarchy, forecast_growth, save_driver, forecast_driver_model, fix_cash_account_type, calculate_dcf, dcf_sensitivity,monte_carlo_dcf, generate_financial_report
+    pay_invoice,get_pnl_periodic, get_pnl_hierarchy, forecast_growth, save_driver, forecast_driver_model, fix_cash_account_type, calculate_dcf, dcf_sensitivity,monte_carlo_dcf, generate_financial_report, ACCOUNT_GROUPS, get_on_create_account,post_journal_entry
 )
+
+from fastapi.responses import StreamingResponse
 
 
 
@@ -118,6 +124,111 @@ def learn_rule(data: RuleCreate, db: Session = Depends(get_db)):
     db.add(rule)
     db.commit()
     return{"msg": "Learned"}
+
+# ============================================================
+# ACCOUNT MASTER
+# ============================================================
+
+@router.post("/accounts")
+def create_account(
+    data: AccountCreate,
+    db: Session = Depends(get_db)
+):
+
+    try:
+
+        account = get_on_create_account(
+            db,
+            data.name,
+            data.group_name
+        )
+
+        return {
+            "id": account.id,
+            "name": account.name,
+            "type": account.type,
+            "group_name": account.group_name,
+            "normal_balance": account.normal_balance
+        }
+
+    except ValueError as e:
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+
+# ============================================================
+# JOURNAL ENTRY
+# ============================================================
+
+@router.post("/journal")
+def create_journal(
+    data: JournalEntryCreate,
+    db: Session = Depends(get_db)
+):
+
+    try:
+
+        lines = [
+            {
+                "account_id": line.account_id,
+                "debit": line.debit,
+                "credit": line.credit
+            }
+            for line in data.lines
+        ]
+
+        entry_date = (
+            datetime.fromisoformat(data.date)
+            if data.date
+            else None
+        )
+
+        entry = post_journal_entry(
+            db,
+            data.description,
+            lines,
+            entry_date
+        )
+
+        return {
+            "message": "Journal entry posted",
+            "entry_id": entry.id
+        }
+
+    except ValueError as e:
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+
+# ============================================================
+# LIST ACCOUNTS
+# ============================================================
+
+@router.get("/accounts")
+def get_accounts(
+    db: Session = Depends(get_db)
+):
+
+    accounts = (
+        db.query(Account)
+        .order_by(Account.group_name, Account.name)
+        .all()
+    )
+
+    return [
+        {
+            "id": account.id,
+            "name": account.name,
+            "type": account.type,
+            "group_name": account.group_name,
+            "normal_balance": account.normal_balance
+        }
+        for account in accounts
+    ]
 
 @router.get("/forecast")
 def forecast(mode: str = "revenue", method: str = "linear", period:str = "monthly", db:Session = Depends(get_db)):
@@ -369,11 +480,19 @@ async def pitch_deck(file: UploadFile = File(...)):
 @router.post("/project-finance/statements")
 def project_statements(project: ProjectInput):
 
-    statements = build_project_statement(
-        project
-    )
+    result = build_project_statement(project)
 
-    return statements
+    asset_schedule = build_asset_schedule(project)
+
+    result["asset_schedule"] = asset_schedule
+
+    returns = calculate_project_returns(project, result)
+    result["returns"] = returns
+
+    dcf = calculate_project_dcf(project, result)
+    result["dcf_valuation"] = dcf
+
+    return result
 
 @router.post("/project-finance/project")
 def save_project(
@@ -438,6 +557,25 @@ def save_project(
                 adr=item.adr
             )
         )
+
+    # ============= COGS ====================
+
+    for item in project.cogs_items:
+
+        db.add(
+            COGSItem(
+                project_id=db_project.id,
+
+                name=item.name,
+                cogs_type=item.cogs_type,
+
+                amount=item.amount,
+                growth_rate=item.growth_rate,
+
+                cost_per_kwh=item.cost_per_kwh,
+                cost_per_room=item.cost_per_room
+            )
+        )
 #=============Opex==============================
     for item in project.opex_items:
 
@@ -452,15 +590,52 @@ def save_project(
             )
         )
 
-    for item in project.capex_items:
+    # ==========================
+    # Fixed Asset Register
+    # ==========================
+
+    for asset in project.fixed_assets:
 
         db.add(
-            CapexItem(
+
+            FixedAsset(
+
                 project_id=db_project.id,
 
-                name=item.name,
-                amount=item.amount
+                asset_name=asset.asset_name,
+
+                asset_category=asset.asset_category,
+
+                purchase_year=asset.purchase_year,
+
+                depreciation_start_year=asset.depreciation_start_year,
+
+                purchase_cost=asset.purchase_cost,
+
+                useful_life=asset.useful_life,
+
+                depreciation_method=asset.depreciation_method,
+
+                salvage_value=asset.salvage_value,
+
+                opening_cost=asset.opening_cost,
+
+                purchase_amount=asset.purchase_amount,
+
+                sale_amount=asset.sale_amount,
+
+                opening_acc_dep=asset.opening_acc_dep,
+
+                sale_year=asset.sale_year,
+
+                asset_status=asset.asset_status,
+
+                is_land=asset.is_land,
+
+                notes=asset.notes
+
             )
+
         )
 
     for item in project.asset_items:
@@ -549,42 +724,6 @@ def save_project(
     }
     
 @router.get("/project-finance/project/{project_id}")
-
-def get_project(project_id: int, db:Session = Depends(get_db)):
-
-    project = (db.query(Project).filter(Project.id == project_id).first())
-
-    print("Current working directory:", os.getcwd())
-    print("Database path:", os.path.abspath("erp.db"))
-    print(Project.__table__.columns.keys())
-
-    if not project:
-        return{
-            "error": "Project not found"
-        }
-    return project
-
-@router.post("/project-finance/project/{project_id}/analyze")
-
-def analyse_saved_project(project_id: int, db: Session = Depends(get_db)):
-    project = (db.query(Project).filter(Project.id == project_id).first())
-
-    if not project:
-        return {
-            "error": "Project not found"
-        }
-    
-    result = build_project_statement(project)
-
-    return result 
-
-@router.get("/project-finance/projects")
-def get_projects(db:Session = Depends(get_db)):
-    projects = db.query(Project).all()
-
-    return projects
-
-@router.get("/project-finance/project/{project_id}")
 def get_project(
     project_id: int,
     db: Session = Depends(get_db)
@@ -596,7 +735,422 @@ def get_project(
         .first()
     )
 
-    return project
+    if not project:
+        raise HTTPException(
+            status_code=404,
+            detail="Project not found"
+        )
+
+    return {
+
+        # ==========================
+        # BASIC PROJECT
+        # ==========================
+
+        "id": project.id,
+
+        "name": project.name,
+
+        "project_type": project.project_type,
+
+        "project_life": project.project_life,
+
+        "tax_rate": project.tax_rate,
+
+        "discount_rate": project.discount_rate,
+
+        "debt_amount": project.debt_amount,
+
+        "interest_rate": project.interest_rate,
+
+        "loan_tenor": project.loan_tenor,
+
+        "construction_period_months":
+            project.construction_period_months,
+
+        "moratorium_months":
+            project.moratorium_months,
+
+        "repayment_frequency":
+            project.repayment_frequency,
+
+        "repayment_type":
+            project.repayment_type,
+
+        "interest_type":
+            project.interest_type,
+
+        "interest_capitalized":
+            project.interest_capitalized,
+
+        "depreciation_years":
+            project.depreciation_years,
+
+
+        # ==========================
+        # REVENUE
+        # ==========================
+
+        "revenue_items": [
+
+            {
+                "id": item.id,
+
+                "name": item.name,
+
+                "revenue_type":
+                    item.revenue_type,
+
+                "growth_rate":
+                    item.growth_rate,
+
+                "amount":
+                    item.amount,
+
+                "capacity_mw":
+                    item.capacity_mw,
+
+                "operating_hours":
+                    item.operating_hours,
+
+                "cuf":
+                    item.cuf,
+
+                "tariff":
+                    item.tariff,
+
+                "tariff_escalation":
+                    item.tariff_escalation,
+
+                "degradation_rate":
+                    item.degradation_rate,
+
+                "rooms":
+                    item.rooms,
+
+                "occupancy_pct":
+                    item.occupancy_pct,
+
+                "adr":
+                    item.adr,
+
+            }
+
+            for item in project.revenue_items
+
+        ],
+
+
+        # ==========================
+        # COGS
+        # ==========================
+
+        "cogs_items": [
+
+            {
+                "id": item.id,
+
+                "name": item.name,
+
+                "cogs_type":
+                    item.cogs_type,
+
+                "amount":
+                    item.amount,
+
+                "growth_rate":
+                    item.growth_rate,
+
+                "cost_per_kwh":
+                    item.cost_per_kwh,
+
+                "cost_per_room":
+                    item.cost_per_room,
+
+            }
+
+            for item in project.cogs_items
+
+        ],
+
+
+        # ==========================
+        # OPEX
+        # ==========================
+
+        "opex_items": [
+
+            {
+                "id": item.id,
+
+                "name": item.name,
+
+                "amount":
+                    item.amount,
+
+                "escalation_rate":
+                    item.escalation_rate,
+
+            }
+
+            for item in project.opex_items
+
+        ],
+
+
+        # ==========================
+        # FIXED ASSETS
+        # ==========================
+
+        "fixed_assets": [
+
+            {
+                "id": asset.id,
+
+                "asset_name":
+                    asset.asset_name,
+
+                "asset_category":
+                    asset.asset_category,
+
+                "purchase_year":
+                    asset.purchase_year,
+
+                "depreciation_start_year":
+                    asset.depreciation_start_year,
+
+                "purchase_cost":
+                    asset.purchase_cost,
+
+                "useful_life":
+                    asset.useful_life,
+
+                "depreciation_method":
+                    asset.depreciation_method,
+
+                "salvage_value":
+                    asset.salvage_value,
+
+                "opening_cost":
+                    asset.opening_cost,
+
+                "purchase_amount":
+                    asset.purchase_amount,
+
+                "sale_amount":
+                    asset.sale_amount,
+
+                "opening_acc_dep":
+                    asset.opening_acc_dep,
+
+                "sale_year":
+                    asset.sale_year,
+
+                "asset_status":
+                    asset.asset_status,
+
+                "is_land":
+                    asset.is_land,
+
+                "notes":
+                    asset.notes,
+
+            }
+
+            for asset in project.fixed_assets
+
+        ],
+
+
+        # ==========================
+        # ASSET ITEMS
+        # ==========================
+
+        "asset_items": [
+
+            {
+                "id": item.id,
+
+                "name": item.name,
+
+                "amount": item.amount,
+
+                "growth_rate":
+                    item.growth_rate,
+
+                "asset_type":
+                    item.asset_type,
+
+            }
+
+            for item in project.asset_items
+
+        ],
+
+
+        # ==========================
+        # LIABILITIES
+        # ==========================
+
+        "liability_items": [
+
+            {
+                "id": item.id,
+
+                "name": item.name,
+
+                "amount": item.amount,
+
+                "growth_rate":
+                    item.growth_rate,
+
+            }
+
+            for item in project.liability_items
+
+        ],
+
+
+        # ==========================
+        # EQUITY
+        # ==========================
+
+        "equity_items": [
+
+            {
+                "id": item.id,
+
+                "name": item.name,
+
+                "amount": item.amount,
+
+                "growth_rate":
+                    item.growth_rate,
+
+            }
+
+            for item in project.equity_items
+
+        ],
+
+
+        # ==========================
+        # DEBT DRAWDOWNS
+        # ==========================
+
+        "debt_drawdowns": [
+
+            {
+                "id": item.id,
+
+                "year":
+                    item.year,
+
+                "drawdown_amount":
+                    item.drawdown_amount,
+
+                "drawdown_months":
+                    item.drawdown_months,
+
+            }
+
+            for item in project.debt_drawdowns
+
+        ],
+
+
+        # ==========================
+        # WORKING CAPITAL
+        # ==========================
+
+        "working_capital": (
+
+            {
+
+                "id":
+                    project.working_capital.id,
+
+                "receivable_days":
+                    project.working_capital.receivable_days,
+
+                "payable_days":
+                    project.working_capital.payable_days,
+
+                "inventory_days":
+                    project.working_capital.inventory_days,
+
+                "prepaid_expenses":
+                    project.working_capital.prepaid_expenses,
+
+                "prepaid_growth_rate":
+                    project.working_capital.prepaid_growth_rate,
+
+                "other_current_assets":
+                    project.working_capital.other_current_assets,
+
+                "other_current_assets_growth_rate":
+                    project.working_capital.other_current_assets_growth_rate,
+
+                "other_current_liabilities":
+                    project.working_capital.other_current_liabilities,
+
+                "other_current_liabilities_growth_rate":
+                    project.working_capital.other_current_liabilities_growth_rate,
+
+            }
+
+            if project.working_capital
+
+            else {
+
+                "receivable_days": 30,
+                "payable_days": 30,
+                "inventory_days": 0,
+                "prepaid_expenses": 0,
+                "prepaid_growth_rate": 0,
+                "other_current_assets": 0,
+                "other_current_assets_growth_rate": 0,
+                "other_current_liabilities": 0,
+                "other_current_liabilities_growth_rate": 0,
+
+            }
+
+        )
+
+    }
+
+@router.post("/project-finance/project/{project_id}/analyze")
+
+def analyse_saved_project(project_id: int, db: Session = Depends(get_db)):
+    project = (db.query(Project).filter(Project.id == project_id).first())
+
+    if not project:
+        return {
+            "error": "Project not found"
+        } 
+    
+    result = build_project_statement(project)
+
+    asset_schedule = build_asset_schedule(project)
+
+    result["asset_schedule"] = asset_schedule
+
+    returns = calculate_project_returns(project, result)
+
+    result["returns"] = returns
+
+    dcf = calculate_project_dcf(project, result)
+
+    result["dcf_valution"] = dcf
+
+    return result 
+
+@router.get("/project-finance/projects")
+def get_projects(db:Session = Depends(get_db)):
+    projects = db.query(Project).all()
+
+    return projects
+
 
 @router.put("/project-finance/project/{project_id}")
 def update_project(
@@ -645,12 +1199,14 @@ def update_project(
     # ------------------
 
     project.revenue_items.clear()
+    project.cogs_items.clear()
     project.opex_items.clear()
-    project.capex_items.clear()
+    project.fixed_assets.clear()
 
     project.asset_items.clear()
     project.liability_items.clear()
     project.equity_items.clear()
+    project.debt_drawdowns.clear()
 
     # ------------------
     # Revenue
@@ -684,6 +1240,29 @@ def update_project(
         )
 
     # ------------------
+    # COGS
+    # ------------------
+
+    for item in data.cogs_items:
+
+        project.cogs_items.append(
+
+            COGSItem(
+
+                name=item.name,
+                cogs_type=item.cogs_type,
+
+                amount=item.amount,
+                growth_rate=item.growth_rate,
+
+                cost_per_kwh=item.cost_per_kwh,
+                cost_per_room=item.cost_per_room
+
+            )
+
+        )
+
+    # ------------------
     # Opex
     # ------------------
 
@@ -698,20 +1277,51 @@ def update_project(
                 escalation_rate=item.escalation_rate
             )
         )
+   
+# ------------------
+# Fixed Assets
+# ------------------
 
-    # ------------------
-    # Capex
-    # ------------------
+    for asset in data.fixed_assets:
 
-    for item in data.capex_items:
+        project.fixed_assets.append(
 
-        project.capex_items.append(
+            FixedAsset(
 
-            CapexItem(
+                asset_name=asset.asset_name,
 
-                name=item.name,
-                amount=item.amount
+                asset_category=asset.asset_category,
+
+                purchase_year=asset.purchase_year,
+
+                depreciation_start_year=asset.depreciation_start_year,
+
+                purchase_cost=asset.purchase_cost,
+
+                useful_life=asset.useful_life,
+
+                depreciation_method=asset.depreciation_method,
+
+                salvage_value=asset.salvage_value,
+
+                opening_cost=asset.opening_cost,
+
+                purchase_amount=asset.purchase_amount,
+
+                sale_amount=asset.sale_amount,
+
+                opening_acc_dep=asset.opening_acc_dep,
+
+                sale_year=asset.sale_year,
+
+                asset_status=asset.asset_status,
+
+                is_land=asset.is_land,
+
+                notes=asset.notes
+
             )
+
         )
 
     # ------------------
@@ -765,14 +1375,34 @@ def update_project(
                 growth_rate=item.growth_rate
             )
         )
-
     # ------------------
+    # Debt Drawdowns
+    # ------------------
+
+    for item in data.debt_drawdowns:
+
+        project.debt_drawdowns.append(
+
+            DebtDrawdown(
+
+                year=item.year,
+
+                drawdown_amount=item.drawdown_amount,
+
+                drawdown_months=item.drawdown_months
+
+            )
+
+        )
+
+   # ------------------
     # Working Capital
     # ------------------
 
     if not project.working_capital:
 
         project.working_capital = WorkingCapital()
+
 
     project.working_capital.receivable_days = (
         data.working_capital.receivable_days
@@ -786,6 +1416,29 @@ def update_project(
         data.working_capital.inventory_days
     )
 
+    project.working_capital.prepaid_expenses = (
+        data.working_capital.prepaid_expenses
+    )
+
+    project.working_capital.prepaid_growth_rate = (
+        data.working_capital.prepaid_growth_rate
+    )
+
+    project.working_capital.other_current_assets = (
+        data.working_capital.other_current_assets
+    )
+
+    project.working_capital.other_current_assets_growth_rate = (
+        data.working_capital.other_current_assets_growth_rate
+    )
+
+    project.working_capital.other_current_liabilities = (
+        data.working_capital.other_current_liabilities
+    )
+
+    project.working_capital.other_current_liabilities_growth_rate = (
+        data.working_capital.other_current_liabilities_growth_rate
+    )
     db.commit()
 
     db.refresh(project)
@@ -796,5 +1449,114 @@ def update_project(
 def analyze_project(project: ProjectInput):
 
     result = build_project_statement(project)
+
+    asset_schedule = build_asset_schedule(project)
+
+    result["asset_schedule"] = asset_schedule
+
+    returns = calculate_project_returns(
+        project,
+        result
+    )
+
+    # ==========================================
+    # ANALYSIS SCHEDULE
+    # ==========================================
+
+    result["analysis_schedule"] = (
+        returns["analysis_schedule"]
+    )
+
+    # ==========================================
+    # KPI VALUES
+    # ==========================================
+
+    result["project_irr"] = (
+        returns["project_irr"]
+    )
+
+    result["equity_irr"] = (
+        returns["equity_irr"]
+    )
+
+    result["npv"] = (
+        returns["npv"]
+    )
+
+    result["minimum_dscr"] = (
+        returns["minimum_dscr"]
+    )
+
+    dcf = calculate_project_dcf(project, result)
+
+    result["dcf_valuation"] = dcf
     
+
     return result
+
+@router.post("/project-finance/assets")
+def build_assets(project: ProjectInput):
+
+    print("========== RETURNING ==========")
+    
+    asset_schedule = build_asset_schedule(project)
+    print(asset_schedule)
+    return {
+        "asset_schedule": asset_schedule
+    }
+
+@router.post("/project-finance/project/{project_id}/export/excel")
+def export_project_excel(
+    project_id: int,
+    db: Session = Depends(get_db)
+):
+
+    project = (
+        db.query(Project)
+        .filter(Project.id == project_id)
+        .first()
+    )
+
+    if not project:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Project not found"
+        )
+
+    # Build the same analysis used by ERP
+    analysis = build_project_statement(
+        project
+    )
+
+    asset_schedule = build_asset_schedule(
+        project
+    )
+
+    analysis["asset_schedule"] = asset_schedule
+
+    excel_file = build_project_finance_excel(
+        project,
+        analysis
+    )
+
+    filename = (
+        f"{project.name or 'Project'}"
+        "_Financial_Model.xlsx"
+    )
+
+    return StreamingResponse(
+
+        excel_file,
+
+        media_type=(
+            "application/vnd.openxmlformats-"
+            "officedocument.spreadsheetml.sheet"
+        ),
+
+        headers={
+            "Content-Disposition":
+                f'attachment; filename="{filename}"'
+        }
+
+    )

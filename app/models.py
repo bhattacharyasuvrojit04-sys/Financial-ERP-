@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, column
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from .db import Base
 from sqlalchemy import DateTime
@@ -8,8 +8,35 @@ class Account(Base):
     __tablename__ = "accounts"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String)
-    type = Column(String) # asset, liability, revenue, expense
+
+    name = Column(
+        String,
+        nullable=False,
+        unique=True
+    )
+
+    # asset / liability / equity / income / expense
+    type = Column(
+        String,
+        nullable=False
+    )
+
+    # Tally-style group
+    group_name = Column(
+        String,
+        nullable=True
+    )
+
+    # debit / credit
+    normal_balance = Column(
+        String,
+        nullable=True
+    )
+
+    is_system = Column(
+        Boolean,
+        default=False
+    )
     
 
 class JournalEntry(Base):

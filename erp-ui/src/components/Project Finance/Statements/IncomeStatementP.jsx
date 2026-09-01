@@ -1,12 +1,18 @@
-export default function IncomeStatement({
-    data
-}) {
+import StatementRow from "./StatementRow";
+
+export default function IncomeStatement({ data, displayUnit }) {
+
+    console.log("IncomeStatement rendered");
+    console.log("Income Statement Data:", data);
 
     if (!data?.length) {
 
-        return null;
+        console.log("NO DATA");
 
+        return null;
     }
+
+    console.log("RETURNING TABLE");
 
     return (
 
@@ -36,179 +42,151 @@ export default function IncomeStatement({
 
                 <tbody>
 
+                    {/* =========================
+                        REVENUE
+                    ========================== */}
+
                     <tr className="section">
-                        <td colSpan={26}>
+
+                        <td colSpan={data.length + 1}>
                             REVENUE
                         </td>
-                    </tr>
-
-                    <tr>
-
-                        <td>Total Revenue</td>
-
-                        {data.map(year => (
-
-                            <td key={year.year}>
-
-                                {Math.round(
-                                    year.revenue / 1000000
-                                ).toLocaleString()} M
-
-                            </td>
-
-                        ))}
 
                     </tr>
+
+                    <StatementRow
+                        label="Total Revenue"
+                        field="revenue"
+                        data={data}
+                        displayUnit={displayUnit}
+                    />
+
+
+                    {/* =========================
+                        COST OF GOODS SOLD
+                    ========================== */}
 
                     <tr className="section">
-                        <td colSpan={26}>
+
+                        <td colSpan={data.length + 1}>
+                            COST OF GOODS SOLD
+                        </td>
+
+                    </tr>
+
+                    <StatementRow
+                        label="Total COGS"
+                        field="cogs"
+                        data={data}
+                        displayUnit={displayUnit}
+                    />
+
+
+                    {/* =========================
+                        GROSS PROFIT
+                    ========================== */}
+
+                    <StatementRow
+                        label="Gross Profit"
+                        field="gross_profit"
+                        data={data}
+                        rowClass="pf-row-gross-profit"
+                        displayUnit={displayUnit}
+                    />
+
+                    <StatementRow
+                        label="Gross Margin"
+                        field="gross_margin"
+                        data={data}
+                        displayUnit={displayUnit}
+                        isPercentage
+                    />
+
+
+                    {/* =========================
+                        OPERATING EXPENSES
+                    ========================== */}
+
+                    <tr className="section">
+
+                        <td colSpan={data.length + 1}>
                             OPERATING EXPENSES
                         </td>
-                    </tr>
-
-                    <tr>
-
-                        <td>Operating Costs</td>
-
-                        {data.map(year => (
-
-                            <td key={year.year}>
-
-                                {Math.round(
-                                    year.opex / 1000000
-                                ).toLocaleString()} M
-
-                            </td>
-
-                        ))}
 
                     </tr>
 
-                    <tr>
+                    <StatementRow
+                        label="Operating Costs"
+                        field="opex"
+                        data={data}
+                        displayUnit={displayUnit}
+                    />
 
-                        <td>Depreciation</td>
+                    <StatementRow
+                        label="EBITDA"
+                        field="ebitda"
+                        data={data}
+                        rowClass="pf-row-ebitda"
+                        displayUnit={displayUnit}
+                    />
 
-                        {data.map(year => (
+                    <StatementRow
+                        label="Depreciation"
+                        field="depreciation"
+                        data={data}
+                        displayUnit={displayUnit}
+                    />
 
-                            <td key={year.year}>
+                    <StatementRow
+                        label="EBIT"
+                        field="ebit"
+                        data={data}
+                        rowClass="pf-row-total"
+                        displayUnit={displayUnit}
+                    />
 
-                                {Math.round(
-                                    year.depreciation / 1000000
-                                ).toLocaleString()} M
 
-                            </td>
-
-                        ))}
-
-                    </tr>
-
-                    <tr>
-
-                        <td><b>EBIT</b></td>
-
-                        {data.map(year => (
-
-                            <td key={year.year}>
-
-                                <b>
-
-                                {Math.round(
-                                    year.ebit / 1000000
-                                ).toLocaleString()} M
-
-                                </b>
-
-                            </td>
-
-                        ))}
-
-                    </tr>
+                    {/* =========================
+                        FINANCING
+                    ========================== */}
 
                     <tr className="section">
-                        <td colSpan={26}>
+
+                        <td colSpan={data.length + 1}>
                             FINANCING
                         </td>
-                    </tr>
-
-                    <tr>
-
-                        <td>Interest Expense</td>
-
-                        {data.map(year => (
-
-                            <td key={year.year}>
-
-                                {Math.round(
-                                    year.interest / 1000000
-                                ).toLocaleString()} M
-
-                            </td>
-
-                        ))}
 
                     </tr>
 
-                    <tr>
+                    <StatementRow
+                        label="Interest Expense"
+                        field="interest"
+                        data={data}
+                        displayUnit={displayUnit}
+                    />
 
-                        <td><b>EBT</b></td>
+                    <StatementRow
+                        label="EBT"
+                        field="ebt"
+                        data={data}
+                        rowClass="pf-row-total"
+                        displayUnit={displayUnit}
+                    />
 
-                        {data.map(year => (
+                    <StatementRow
+                        label="Income Tax"
+                        field="tax"
+                        data={data}
+                        displayUnit={displayUnit}
+                    />
 
-                            <td key={year.year}>
-
-                                <b>
-
-                                {Math.round(
-                                    year.ebt / 1000000
-                                ).toLocaleString()} M
-
-                                </b>
-
-                            </td>
-
-                        ))}
-
-                    </tr>
-
-                    <tr>
-
-                        <td>Income Tax</td>
-
-                        {data.map(year => (
-
-                            <td key={year.year}>
-
-                                {Math.round(
-                                    year.tax / 1000000
-                                ).toLocaleString()} M
-
-                            </td>
-
-                        ))}
-
-                    </tr>
-
-                    <tr>
-
-                        <td><b>Net Income</b></td>
-
-                        {data.map(year => (
-
-                            <td key={year.year}>
-
-                                <b>
-
-                                {Math.round(
-                                    year.pat / 1000000
-                                ).toLocaleString()} M
-
-                                </b>
-
-                            </td>
-
-                        ))}
-
-                    </tr>
+                    <StatementRow
+                        label="Net Income"
+                        field="pat"
+                        data={data}
+                        rowClass="pf-row-pat"
+                        displayUnit={displayUnit}
+                    />
 
                 </tbody>
 
@@ -217,5 +195,4 @@ export default function IncomeStatement({
         </div>
 
     );
-
 }

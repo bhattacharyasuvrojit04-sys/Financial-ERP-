@@ -2,14 +2,17 @@ import React, { useEffect, useState } from "react";
 
 import Sidebar from "../components/Project Finance/Sidebar";
 import Workspace from "../components/Project Finance/Workspace";
+import AssetSidebar from "../components/Project Finance/AssetSidebar";
 
 import "../styles/ProjectFinance.css";
 
 import {
     getProjects,
     getProject,
-    analyzeSavedProject, saveProject, updateProject, analyzeProject
+    analyzeSavedProject, saveProject, updateProject, analyzeProject, buildAssetSchedule, exportProjectExcel
 } from "../services/api";
+
+
 
 export default function ProjectFinance() {
 
@@ -56,8 +59,9 @@ export default function ProjectFinance() {
     depreciation_years: 15,
 
     revenue_items: [],
+    cogs_items: [],
     opex_items: [],
-    capex_items: [],
+    fixed_assets: [],
     asset_items: [],
     liability_items: [],
     equity_items: [],
@@ -77,6 +81,18 @@ export default function ProjectFinance() {
         setSelectedProject] = useState(null);
 
     const [result, setResult] = useState(null);
+    console.log("PROJECT FINANCE RENDER");
+    console.log("Current result:", result);
+
+    useEffect(() => {
+        console.log("RESULT CHANGED:", result);
+    }, [result]);
+
+    const [assetSchedule, setAssetSchedule] = useState([]);
+    const [activeTab, setActiveTab] = useState("income");
+
+    const [displayUnit, setDisplayUnit] = useState("million");
+
 
     useEffect(() => {
 
@@ -174,11 +190,14 @@ export default function ProjectFinance() {
             revenue_items:
                 fullProject.revenue_items || [],
 
+            cogs_items:
+                fullProject.cogs_items || [],
+
             opex_items:
                 fullProject.opex_items || [],
 
-            capex_items:
-                fullProject.capex_items || [],
+            fixed_assets:
+                fullProject.fixed_assets || [],
 
             asset_items:
                 fullProject.asset_items || [],
@@ -232,28 +251,135 @@ export default function ProjectFinance() {
 
     };
 
-    const handleAnalyze =
-        async () => {
+   const handleAnalyze = async () => {
 
-        try {
+    try {
 
-            const analysis =
-                await analyzeProject(project);
+        // Send the latest project (including asset schedule)
+        const payload = {
+            ...project,
+            fixed_assets: project.fixed_assets,
+            revenue_items: project.revenue_items,
+            cogs_items: project.cogs_items, 
+            opex_items: project.opex_items,
+            asset_items: project.asset_items,
+            liability_items: project.liability_items,
+            equity_items: project.equity_items,
+            debt_drawdowns: project.debt_drawdowns,
+            working_capital: project.working_capital,
+        };
 
-            console.log(
-                "Analysis:",
-                analysis
+        console.log("Sending Payload:");
+        console.log(payload);
+
+        const analysis = await analyzeProject(payload);
+
+        console.log("Revenue Breakdown:");
+        console.log(analysis.projection[1].revenue_breakdown);
+
+        console.log("Analysis Result:");
+        console.log(analysis);
+
+        console.log("Projection length:", analysis.projection?.length);
+        console.log("Asset Schedule length:", analysis.asset_schedule?.length);
+
+        console.log("Year 1 Projection");
+        console.log(analysis.projection?.[0]);
+        
+
+        setResult(analysis);
+
+        console.log("Returned Analysis:", analysis);
+        console.log("Returned Asset Schedule:", analysis.asset_schedule);
+        console.log(
+        "YEAR 2 KEYS:",
+        Object.keys(analysis.projection[1])
+    );
+
+        console.table(analysis.projection[1]);
+
+    } catch (err) {
+
+        console.error("Project Analysis Failed:", err);
+
+    }
+
+};
+
+   const handleExcelDownload = async () => {
+
+    if (!project?.id) {
+
+        alert(
+            "Please save the project before downloading the Excel model."
+        );
+
+        return;
+
+    }
+
+    try {
+
+        const blob =
+            await exportProjectExcel(
+                project.id
             );
 
-            setResult(analysis);
+        const url =
+            window.URL.createObjectURL(blob);
 
-        } catch (err) {
+        const link =
+            document.createElement("a");
 
-            console.error(err);
+        link.href = url;
 
-        }
+        link.download =
+            `${project.name || "Project"}_Financial_Model.xlsx`;
 
-    };
+        document.body.appendChild(link);
+
+        link.click();
+
+        link.remove();
+
+        window.URL.revokeObjectURL(url);
+
+    } catch (err) {
+
+        console.error(
+            "Excel Download Failed:",
+            err
+        );
+
+        alert(
+            "Failed to download Excel model."
+        );
+
+    }
+
+};
+
+   const handleRunAssets = async () => {
+
+    try {
+        console.log("========== PROJECT SENT ==========");
+        console.log(JSON.stringify(project, null, 2));
+        
+
+        const response = await buildAssetSchedule(project);
+
+        console.log(response);
+        console.log(response.asset_schedule);
+
+        setAssetSchedule(response.asset_schedule);
+
+    } catch(err){
+
+        console.error(err);
+
+    }
+
+}
 
     return (
 
@@ -261,21 +387,56 @@ export default function ProjectFinance() {
 
             <div className="pf-container">
 
+               {
+
+                activeTab === "asset"
+
+                ?
+
+                <AssetSidebar
+
+                    project={project}
+
+                    setProject={setProject}
+
+                    onAnalyze={handleAnalyze}
+                     
+                    onSave={handleSave}
+
+                />
+
+                :
+
                 <Sidebar
+
                     projects={projects}
 
                     project={project}
+
                     setProject={setProject}
 
                     selectedProject={selectedProject}
+
                     onSelectProject={handleProjectSelect}
 
                     onAnalyze={handleAnalyze}
+
                     onSave={handleSave}
+
                 />
+
+}
 
                 <Workspace
                     result={result}
+                    project={project}
+                    setProject={setProject}
+                    activeTab={activeTab}
+                    setActiveTab={setActiveTab}
+                    assetSchedule={assetSchedule}
+                    displayUnit={displayUnit}
+                    setDisplayUnit={setDisplayUnit}
+                    onExcelDownload={handleExcelDownload}
                 />
 
             </div>

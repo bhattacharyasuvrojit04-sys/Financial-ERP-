@@ -1,9 +1,106 @@
 from sqlalchemy.orm import Session
 from .models import Account, JournalEntry, JournalLine, Invoice,Rule, Driver
 from .ai import classify
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import text
 import random
+
+# ============================================================
+# ACCOUNTING MASTER / CHART OF ACCOUNTS
+# ============================================================
+
+ACCOUNT_GROUPS = {
+
+    # ================= ASSETS =================
+
+    "Cash-in-Hand": {
+        "type": "current_assets",
+        "normal_balance": "debit"
+    },
+
+    "Bank Accounts": {
+        "type": "current_assets",
+        "normal_balance": "debit"
+    },
+
+    "Current Assets": {
+        "type": "current_assets",
+        "normal_balance": "debit"
+    },
+
+    "Fixed Assets": {
+        "type": "non_current_assets",
+        "normal_balance": "debit"
+    },
+
+    "Investments": {
+        "type": "non_current_assets",
+        "normal_balance": "debit"
+    },
+
+    # ================= LIABILITIES =================
+
+    "Current Liabilities": {
+        "type": "current_liabilities",
+        "normal_balance": "credit"
+    },
+
+    "Other Liabilities": {
+        "type": "non_current_liabilities",
+        "normal_balance": "credit"
+    },
+
+    "Secured Loans": {
+        "type": "non_current_liabilities",
+        "normal_balance": "credit"
+    },
+
+    "Unsecured Loans": {
+        "type": "non_current_liabilities",
+        "normal_balance": "credit"
+    },
+
+    # ================= EQUITY =================
+
+    "Capital Account": {
+        "type": "equity",
+        "normal_balance": "credit"
+    },
+
+    "Reserves & Surplus": {
+        "type": "equity",
+        "normal_balance": "credit"
+    },
+
+    # ================= INCOME =================
+
+    "Sales Accounts": {
+        "type": "operating_income",
+        "normal_balance": "credit"
+    },
+
+    "Indirect Income": {
+        "type": "non_operating_income",
+        "normal_balance": "credit"
+    },
+
+    # ================= EXPENSE =================
+
+    "Direct Expenses": {
+        "type": "operating_expense",
+        "normal_balance": "debit"
+    },
+
+    "Indirect Expenses": {
+        "type": "operating_expense",
+        "normal_balance": "debit"
+    },
+
+    "Finance Costs": {
+        "type": "non_operating_expense",
+        "normal_balance": "debit"
+    }
+}
 
 #2nd page for results monthly, quarterly and yearly:
 def get_period_range(period: str, date: str = None):
@@ -37,10 +134,10 @@ def get_period_range(period: str, date: str = None):
 
 
 # 1st page of the software
-def apply_date_filter(query, model, start_date, end_date):
-    if not start_date and not end_date: 
-        return query
+def apply_date_filter(query, model, start_date=None, end_date=None):
 
+    if not start_date and not end_date:
+        return query
 
     if start_date and isinstance(start_date, str):
         start_date = datetime.fromisoformat(start_date)
@@ -49,34 +146,482 @@ def apply_date_filter(query, model, start_date, end_date):
         end_date = datetime.fromisoformat(end_date)
 
     if start_date:
-        query = query.filter(model.created_at >= start_date)
+        query = query.filter(
+            model.created_at >= start_date
+        )
 
     if end_date:
-        query = query.filter(model.created_at <= end_date)
+        # Include the complete end date
+        end_exclusive = end_date + timedelta(days=1)
+
+        query = query.filter(
+            model.created_at < end_exclusive
+        )
 
     return query
 
-def get_on_create_account(db,name, type_, sub_type = None):
-    name = name.lower()
-    type_ = type_.lower()
+def get_on_create_account(
+    db: Session,
+    name: str,
+    group_name: str
+):
+    name = name.strip().lower()
+    group_name = group_name.strip()
 
-    acc = db.query(Account).filter(Account.name == name).first()
-    if not acc:
-        acc = Account(name = name, type = type_)
-        db.add(acc)
+    # -----------------------------------------
+    # 1. Validate group
+    # -----------------------------------------
+
+    group = ACCOUNT_GROUPS.get(group_name)
+
+    if not group:
+        raise ValueError(
+            f"Invalid account group: {group_name}"
+        )
+
+    account_type = group["type"]
+    normal_balance = group["normal_balance"]
+
+    # -----------------------------------------
+    # 2. Check whether account already exists
+    # -----------------------------------------
+
+    account = (
+        db.query(Account)
+        .filter(Account.name == name)
+        .first()
+    )
+
+    # -----------------------------------------
+    # 3. Existing account
+    # -----------------------------------------
+
+    if account:
+
+        # Update missing/outdated accounting metadata
+        account.group_name = group_name
+        account.type = account_type
+        account.normal_balance = normal_balance
+
         db.commit()
-        db.refresh(acc)
-    else:
-        #FIX: update type if wrong
-        if acc.type != type_:
-            print(f"Fixing account type: {name} {acc.type} → {type_}")
-            acc.type = type_
-            db.commit()
+        db.refresh(account)
 
-    return acc
+        return account
+
+    # -----------------------------------------
+    # 4. Create new account
+    # -----------------------------------------
+
+    account = Account(
+        name=name,
+        type=account_type,
+        group_name=group_name,
+        normal_balance=normal_balance
+    )
+
+    db.add(account)
+    db.commit()
+    db.refresh(account)
+
+    return account
+
+# ============================================================
+# DOUBLE ENTRY JOURNAL ENGINE
+# ============================================================
+
+def post_journal_entry(
+    db: Session,
+    description: str,
+    lines: list,
+    entry_date=None
+):
+
+    if not lines:
+        raise ValueError(
+            "Journal entry must contain at least one line"
+        )
+
+    total_debit = sum(
+        float(line.get("debit", 0))
+        for line in lines
+    )
+
+    total_credit = sum(
+        float(line.get("credit", 0))
+        for line in lines
+    )
+
+    # Accounting equation:
+    # Total Debit = Total Credit
+
+    if round(total_debit, 2) != round(total_credit, 2):
+        raise ValueError(
+            f"Unbalanced journal entry. "
+            f"Debit={total_debit}, "
+            f"Credit={total_credit}"
+        )
+
+    entry = JournalEntry(
+        description=description,
+        created_at=(
+            entry_date
+            or datetime.now(timezone.utc)
+        )
+    )
+
+    db.add(entry)
+
+    # Get ID before creating lines
+    db.flush()
+
+    for line in lines:
+
+        debit = float(line.get("debit", 0))
+        credit = float(line.get("credit", 0))
+
+        if debit < 0 or credit < 0:
+            raise ValueError(
+                "Debit and credit cannot be negative"
+            )
+
+        if debit > 0 and credit > 0:
+            raise ValueError(
+                "One journal line cannot contain "
+                "both debit and credit"
+            )
+
+        if debit == 0 and credit == 0:
+            raise ValueError(
+                "Journal line must contain "
+                "either debit or credit"
+            )
+
+        journal_line = JournalLine(
+            entry_id=entry.id,
+            account_id=line["account_id"],
+            debit=debit,
+            credit=credit
+        )
+
+        db.add(journal_line)
+
+    db.commit()
+    db.refresh(entry)
+
+    return entry
+
+def create_transaction(
+    db: Session,
+    description: str,
+    amount: float,
+    date: str = None
+):
+    """
+    Creates a transaction using the Tally-style
+    double-entry accounting engine.
+
+    Current behaviour:
+        Income / Expense / Asset / Liability
+        transactions are automatically posted
+        against Cash.
+
+    Later this can be extended to:
+        Credit Sales
+        Credit Purchases
+        Loans
+        GST
+        Payroll
+        Fixed Assets
+        Receivables
+        Payables
+        etc.
+    """
+
+    if amount <= 0:
+        raise ValueError("Amount must be greater than zero")
+
+    entry_date = (
+        datetime.fromisoformat(date)
+        if date
+        else datetime.now(timezone.utc)
+    )
+
+    # ========================================================
+    # 1. GET ACCOUNTING RULES
+    # ========================================================
+
+    rules = db.query(Rule).all()
+
+    category = classify(description, rules)
+
+    if not category:
+        raise ValueError(
+            "Unable to classify this transaction"
+        )
+
+    category = category.strip().lower()
+
+    print("RAW CATEGORY:", category)
+
+    # ========================================================
+    # 2. MAP OLD AI CATEGORIES TO TALLY GROUPS
+    # ========================================================
+
+    category_to_group = {
+
+        # ---------------- INCOME ----------------
+
+        "operating_income":
+            "Sales Accounts",
+
+        "non_operating_income":
+            "Indirect Income",
+
+        "income":
+            "Sales Accounts",
+
+        "revenue":
+            "Sales Accounts",
+
+        # ---------------- EXPENSE ----------------
+
+        "operating_expense":
+            "Direct Expenses",
+
+        "non_operating_expense":
+            "Indirect Expenses",
+
+        "expense":
+            "Indirect Expenses",
+
+        # ---------------- ASSETS ----------------
+
+        "current_assets":
+            "Current Assets",
+
+        "non_current_assets":
+            "Fixed Assets",
+
+        "asset":
+            "Current Assets",
+
+        # ---------------- LIABILITIES ----------------
+
+        "current_liabilities":
+            "Current Liabilities",
+
+        "non_current_liabilities":
+            "Other Liabilities",
+
+        "liability":
+            "Other Liabilities",
+
+        # ---------------- EQUITY ----------------
+
+        "equity":
+            "Capital Account"
+    }
+
+    group_name = category_to_group.get(category)
+
+    if not group_name:
+        raise ValueError(
+            f"Unsupported accounting category: {category}"
+        )
+
+    # ========================================================
+    # 3. CASH ACCOUNT
+    # ========================================================
+
+    cash = get_on_create_account(
+        db,
+        "cash",
+        "Cash-in-Hand"
+    )
+
+    # ========================================================
+    # 4. CREATE TARGET ACCOUNT
+    # ========================================================
+
+    account = get_on_create_account(
+        db,
+        description,
+        group_name
+    )
+
+    # ========================================================
+    # 5. CREATE DOUBLE-ENTRY
+    # ========================================================
+
+    lines = []
+
+    # --------------------------------------------------------
+    # INCOME
+    # --------------------------------------------------------
+
+    if category in [
+        "operating_income",
+        "non_operating_income",
+        "income",
+        "revenue"
+    ]:
+
+        # Cash Dr
+        #     Revenue Cr
+
+        lines = [
+            {
+                "account_id": cash.id,
+                "debit": amount,
+                "credit": 0
+            },
+            {
+                "account_id": account.id,
+                "debit": 0,
+                "credit": amount
+            }
+        ]
+
+    # --------------------------------------------------------
+    # EXPENSE
+    # --------------------------------------------------------
+
+    elif category in [
+        "operating_expense",
+        "non_operating_expense",
+        "expense"
+    ]:
+
+        # Expense Dr
+        #     Cash Cr
+
+        lines = [
+            {
+                "account_id": account.id,
+                "debit": amount,
+                "credit": 0
+            },
+            {
+                "account_id": cash.id,
+                "debit": 0,
+                "credit": amount
+            }
+        ]
+
+    # --------------------------------------------------------
+    # ASSET
+    # --------------------------------------------------------
+
+    elif category in [
+        "current_assets",
+        "non_current_assets",
+        "asset"
+    ]:
+
+        # Asset Dr
+        #     Cash Cr
+
+        lines = [
+            {
+                "account_id": account.id,
+                "debit": amount,
+                "credit": 0
+            },
+            {
+                "account_id": cash.id,
+                "debit": 0,
+                "credit": amount
+            }
+        ]
+
+    # --------------------------------------------------------
+    # LIABILITY
+    # --------------------------------------------------------
+
+    elif category in [
+        "current_liabilities",
+        "non_current_liabilities",
+        "liability"
+    ]:
+
+        # Cash Dr
+        #     Liability Cr
+
+        lines = [
+            {
+                "account_id": cash.id,
+                "debit": amount,
+                "credit": 0
+            },
+            {
+                "account_id": account.id,
+                "debit": 0,
+                "credit": amount
+            }
+        ]
+
+    # --------------------------------------------------------
+    # EQUITY
+    # --------------------------------------------------------
+
+    elif category == "equity":
+
+        # Cash Dr
+        #     Capital Cr
+
+        lines = [
+            {
+                "account_id": cash.id,
+                "debit": amount,
+                "credit": 0
+            },
+            {
+                "account_id": account.id,
+                "debit": 0,
+                "credit": amount
+            }
+        ]
+
+    else:
+
+        raise ValueError(
+            f"Cannot create journal entry for category: {category}"
+        )
+
+    # ========================================================
+    # 6. POST THROUGH CENTRAL JOURNAL ENGINE
+    # ========================================================
+
+    entry = post_journal_entry(
+        db=db,
+        description=description,
+        lines=lines,
+        entry_date=entry_date
+    )
+
+    return {
+        "msg": "Transaction recorded successfully",
+
+        "entry_id": entry.id,
+
+        "description": description,
+
+        "amount": amount,
+
+        "category": category,
+
+        "account": account.name,
+
+        "group": group_name,
+
+        "journal": {
+            "debit": amount,
+            "credit": amount
+        }
+    }
     
 
-def create_transaction(db: Session, description: str, amount: float, date: str = None):
+'''def create_transaction(db: Session, description: str, amount: float, date: str = None):
     entry_date = datetime.fromisoformat(date) if date else datetime.now()
     rule = db.query(Rule).all()
     category = classify(description, rule)
@@ -164,7 +709,8 @@ def create_transaction(db: Session, description: str, amount: float, date: str =
             JournalLine(entry_id = entry.id, account_id = acc.id, credit = amount),
         ])
     db.commit()
-    return {"msg": "Transaction recorded", "category": category}
+    return {"msg": "Transaction recorded", "category": category}'''
+
 #For PnL:
 def get_pnl(db: Session, start_date = None, end_date = None, use_driver = False):
     op_income = 0
@@ -493,12 +1039,14 @@ def get_balance_sheet(db: Session, start_date=None, end_date=None):
     non_current_assets = 0
     current_liabilities = 0
     non_current_liabilities = 0
+    equity = 0
 
     line_items = {
         "current_assets": {},
         "non_current_assets": {},
         "current_liabilities": {},
-        "non_current_liabilities": {}
+        "non_current_liabilities": {},
+        "equity": {}
     }
 
     query = db.query(JournalLine).join(JournalEntry)
@@ -542,6 +1090,13 @@ def get_balance_sheet(db: Session, start_date=None, end_date=None):
             non_current_liabilities += (-value)
             line_items["non_current_liabilities"][name] = \
                 line_items["non_current_liabilities"].get(name, 0) + (-value)
+            
+        elif acc_type == "equity":
+            value = l.credit - l.debit
+            equity += value
+
+            line_items["equity"][name] = \
+                line_items["equity"].get(name, 0) + value
         
 
     # ================= EQUITY =================
@@ -574,7 +1129,7 @@ def create_invoice(db: Session, customer_id: int, amount: float):
 
     #accounting entry:
     receivable = get_on_create_account(db,"Accounts Receivable", "current_assets")
-    revenue = get_on_create_account(db,"Revenue","revenue")
+    revenue = get_on_create_account(db,"Revenue","revenue", "Sales Accounts")
 
     entry = JournalEntry(description = "Invoice created")
     db.add(entry)

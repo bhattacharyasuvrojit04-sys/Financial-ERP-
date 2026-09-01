@@ -7,6 +7,7 @@ import AssetSection from "./Forms/AssetSection";
 import LiabilitySection from "./Forms/LiabilitySection";
 import EquitySection from "./Forms/EquitySection";
 import DebtStructureSection from "./Forms/DebtStructureSection";
+import COGSInput from "./COGSInput";
 
 export default function Sidebar({
     projects = [],
@@ -21,7 +22,7 @@ export default function Sidebar({
     onSave
 }) {
 
-    const setRevenueItems = (items) => {
+const setRevenueItems = (items) => {
 
     setProject({
         ...project,
@@ -29,6 +30,16 @@ export default function Sidebar({
     });
 
 };
+
+const setCogsItems = (items) => {
+
+    setProject({
+        ...project,
+        cogs_items: items
+    });
+
+};
+
 
 const setOpexItems = (items) => {
 
@@ -105,7 +116,9 @@ const setEquityItems = (items) => {
 
             {/* SAVED PROJECTS */}
 
-            <div className="pf-section">
+            <div className="pf-sidebar-body">
+
+                <div className="pf-section">
 
                 <div className="pf-section-title">
                     SAVED PROJECTS
@@ -381,6 +394,150 @@ const setEquityItems = (items) => {
                 }
             />
 
+            <label>Prepaid Expenses</label>
+
+            <input
+                type="number"
+                value={project.working_capital?.prepaid_expenses ?? 0}
+                onChange={(e)=>
+
+                    setProject({
+
+                        ...project,
+
+                        working_capital:{
+
+                            ...project.working_capital,
+
+                            prepaid_expenses:Number(e.target.value)
+
+                        }
+
+                    })
+
+                }
+            />
+
+            <label>Growth (%)</label>
+
+            <input
+                type="number"
+                value={project.working_capital?.prepaid_growth_rate ?? 0}
+                onChange={(e)=>
+
+                    setProject({
+
+                        ...project,
+
+                        working_capital:{
+
+                            ...project.working_capital,
+
+                            prepaid_growth_rate:Number(e.target.value)
+
+                        }
+
+                    })
+
+                }
+            />
+
+            <label>Other Current Assets</label>
+
+            <input
+                type="number"
+                value={project.working_capital?.other_current_assets ?? 0}
+                onChange={(e)=>
+
+                    setProject({
+
+                        ...project,
+
+                        working_capital:{
+
+                            ...project.working_capital,
+
+                            other_current_assets:Number(e.target.value)
+
+                        }
+
+                    })
+
+                }
+            />
+
+            <label>Growth (%)</label>
+
+            <input
+                type="number"
+                value={project.working_capital?.other_current_assets_growth_rate ?? 0}
+                onChange={(e)=>
+
+                    setProject({
+
+                        ...project,
+
+                        working_capital:{
+
+                            ...project.working_capital,
+
+                            other_current_assets_growth_rate:Number(e.target.value)
+
+                        }
+
+                    })
+
+                }
+            />
+
+            <label>Other Current Liabilities</label>
+
+            <input
+                type="number"
+                value={project.working_capital?.other_current_liabilities ?? 0}
+                onChange={(e)=>
+
+                    setProject({
+
+                        ...project,
+
+                        working_capital:{
+
+                            ...project.working_capital,
+
+                            other_current_liabilities:Number(e.target.value)
+
+                        }
+
+                    })
+
+                }
+            />
+
+            <label>Growth (%)</label>
+
+            <input
+                type="number"
+                value={project.working_capital?.other_current_liabilities_growth_rate ?? 0}
+                onChange={(e)=>
+
+                    setProject({
+
+                        ...project,
+
+                        working_capital:{
+
+                            ...project.working_capital,
+
+                            other_current_liabilities_growth_rate:Number(e.target.value)
+
+                        }
+
+                    })
+
+                }
+            />
+
         </div>
 
             {/* LINE ITEMS */}
@@ -396,21 +553,15 @@ const setEquityItems = (items) => {
                     setItems={setRevenueItems}
                 />
 
+                <COGSInput
+                    items={project.cogs_items || []}
+                    setItems={setCogsItems}
+                />
+
                 <OpexSection
                     title="Opex"
                     items={project.opex_items || []}
                     setItems={setOpexItems}
-                    defaultItem={{
-                        name: "",
-                        amount: 0,
-                        growth_rate: 0
-                    }}
-                />
-
-                <CapexSection
-                    title="Capex"
-                    items={project.capex_items || []}
-                    setItems={setCapexItems}
                     defaultItem={{
                         name: "",
                         amount: 0,
@@ -453,9 +604,15 @@ const setEquityItems = (items) => {
             </div>
 
 
+            </div>
+
+            
+
 
 
             {/* ACTIONS */}
+
+        <div className="pf-sidebar-footer">
 
             <button
                 className="pf-run-btn"
@@ -466,11 +623,12 @@ const setEquityItems = (items) => {
 
             <button
                 className="pf-save-btn"
-                
                 onClick={onSave}
             >
                 Save Project
             </button>
+
+        </div>
 
             
 

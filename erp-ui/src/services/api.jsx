@@ -294,3 +294,58 @@ export async function analyzeProject(payload){
 
     return response.json();
 }
+
+export async function buildAssetSchedule(payload){
+
+    const response = await fetch(
+        `${BASE_URL}/project-finance/assets`,
+        {
+            method:"POST",
+            headers:{
+                "Content-Type":"application/json"
+            },
+            body:JSON.stringify(payload)
+        }
+    );
+
+    if (!response.ok) {
+    const errorText = await response.text();
+
+    console.error(
+        "BACKEND ERROR STATUS:",
+        response.status
+    );
+
+    console.error(
+        "BACKEND ERROR BODY:",
+        errorText
+    );
+
+    throw new Error(
+        `Analysis Failed: ${errorText}`
+    );
+}
+
+    return response.json();
+
+}
+
+export async function exportProjectExcel(projectId) {
+
+    const response = await fetch(
+        `${BASE_URL}/project-finance/project/${projectId}/export/excel`,
+        {
+            method: "POST"
+        }
+    );
+
+    if (!response.ok) {
+
+        throw new Error(
+            "Excel export failed"
+        );
+
+    }
+
+    return await response.blob();
+}

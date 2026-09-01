@@ -346,7 +346,7 @@ export default function DebtStructureSection({ project, setProject }) {
                         />
 
                         <input
-                            className="pf-small-input"
+                            className="pf-large-input"
 
                             type="number"
 
