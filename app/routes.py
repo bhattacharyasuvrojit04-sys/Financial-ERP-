@@ -4,6 +4,7 @@ import shutil
 import copy
 from fastapi import APIRouter, Depends, Query, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.AI.analyzer import analyze_financial_document
 from app.AI.assumption import generate_assumptions
@@ -35,14 +36,12 @@ from .services import (
     get_period_range,
     create_transaction,
     get_pnl,
-    apply_depreciation,
     get_ebitda,
     get_cash_flow,
     get_balance_sheet,
     create_invoice,
     get_time_series,
-    pay_invoice,get_pnl_periodic, get_pnl_hierarchy, forecast_growth, save_driver, forecast_driver_model, fix_cash_account_type, calculate_dcf, dcf_sensitivity,monte_carlo_dcf, generate_financial_report, ACCOUNT_GROUPS, get_on_create_account,post_journal_entry
-)
+    pay_invoice,get_pnl_periodic, get_pnl_hierarchy, forecast_growth, save_driver, forecast_driver_model, fix_cash_account_type, calculate_dcf, dcf_sensitivity,monte_carlo_dcf, generate_financial_report, ACCOUNT_GROUPS, get_on_create_account,post_journal_entry, create_fixed_asset, get_fixed_assets, get_asset_schedule, post_depreciation_journal)
 
 from fastapi.responses import StreamingResponse
 
@@ -159,6 +158,393 @@ def create_account(
         )
 
 # ============================================================
+# GENERAL LEDGER
+# ============================================================
+
+@router.get("/general-ledger")
+def get_general_ledger(
+    account_id: int | None = None,
+    db: Session = Depends(get_db)
+):
+
+    query = (
+        db.query(JournalLine, JournalEntry, Account)
+        .join(
+            JournalEntry,
+            JournalLine.entry_id == JournalEntry.id
+        )
+        .join(
+            Account,
+            JournalLine.account_id == Account.id
+        )
+        .order_by(
+            JournalEntry.created_at,
+            JournalLine.id
+        )
+    )
+
+    # If an account is selected,
+    # show only that account's ledger.
+    if account_id is not None:
+        query = query.filter(
+            JournalLine.account_id == account_id
+        )
+
+    rows = query.all()
+
+    result = []
+
+    # --------------------------------------------------
+    # IMPORTANT:
+    # Maintain a separate running balance for each account
+    # --------------------------------------------------
+
+    running_balances = {}
+
+    for line, entry, account in rows:
+
+        # Initialize balance for this account
+        if account.id not in running_balances:
+            running_balances[account.id] = 0
+
+        # --------------------------------------------------
+        # Debit-normal accounts
+        # Assets / Expenses
+        # --------------------------------------------------
+
+        if account.normal_balance == "debit":
+
+            running_balances[account.id] += (
+                line.debit - line.credit
+            )
+
+        # --------------------------------------------------
+        # Credit-normal accounts
+        # Liabilities / Equity / Income
+        # --------------------------------------------------
+
+        else:
+
+            running_balances[account.id] += (
+                line.credit - line.debit
+            )
+
+        result.append({
+            "id": line.id,
+
+            "date": (
+                entry.created_at.isoformat()
+                if entry.created_at
+                else None
+            ),
+
+            "journal_id": entry.id,
+
+            "journal": f"JV-{entry.id:05d}",
+
+            "description": entry.description,
+
+            "account_id": account.id,
+
+            "account": account.name,
+
+            "account_type": account.type,
+
+            "normal_balance": account.normal_balance,
+
+            "debit": line.debit,
+
+            "credit": line.credit,
+
+            "balance": running_balances[account.id]
+        })
+
+    return result
+
+# ============================================================
+# TRIAL BALANCE
+# ============================================================
+
+@router.get("/trial-balance")
+def get_trial_balance(
+    db: Session = Depends(get_db)
+):
+
+    accounts = (
+        db.query(Account)
+        .order_by(Account.group_name, Account.name)
+        .all()
+    )
+
+    result = []
+
+    total_debit = 0
+    total_credit = 0
+
+    for account in accounts:
+
+        lines = (
+            db.query(JournalLine)
+            .filter(
+                JournalLine.account_id == account.id
+            )
+            .all()
+        )
+
+        debit = sum(
+            float(line.debit or 0)
+            for line in lines
+        )
+
+        credit = sum(
+            float(line.credit or 0)
+            for line in lines
+        )
+
+        # Net account balance
+        if account.normal_balance == "debit":
+
+            balance = debit - credit
+
+            trial_debit = max(balance, 0)
+            trial_credit = max(-balance, 0)
+
+        else:
+
+            balance = credit - debit
+
+            trial_credit = max(balance, 0)
+            trial_debit = max(-balance, 0)
+
+        total_debit += trial_debit
+        total_credit += trial_credit
+
+        result.append({
+            "id": account.id,
+            "name": account.name,
+            "type": account.type,
+            "group_name": account.group_name,
+            "normal_balance": account.normal_balance,
+            "debit": trial_debit,
+            "credit": trial_credit
+        })
+
+    return {
+        "accounts": result,
+        "total_debit": total_debit,
+        "total_credit": total_credit
+    }
+
+# ============================================================
+# ACCOUNTING OVERVIEW
+# ============================================================
+
+@router.get("/accounting-overview")
+def accounting_overview(
+    db: Session = Depends(get_db)
+):
+
+    accounts = db.query(Account).all()
+
+    # --------------------------------------------------------
+    # Aggregate journal lines account-wise
+    # --------------------------------------------------------
+
+    balances = (
+        db.query(
+            Account.id,
+            Account.name,
+            Account.type,
+            Account.group_name,
+            func.coalesce(func.sum(JournalLine.debit), 0).label("debit"),
+            func.coalesce(func.sum(JournalLine.credit), 0).label("credit"),
+        )
+        .outerjoin(
+            JournalLine,
+            JournalLine.account_id == Account.id
+        )
+        .group_by(
+            Account.id,
+            Account.name,
+            Account.type,
+            Account.group_name
+        )
+        .all()
+    )
+
+    revenue = 0
+    expenses = 0
+    assets = 0
+    liabilities = 0
+    equity = 0
+
+    account_balances = []
+
+    for row in balances:
+
+        debit = float(row.debit or 0)
+        credit = float(row.credit or 0)
+
+        # Normalize account type
+        account_type = (row.type or "").strip().lower()
+
+        # =====================================================
+        # INCOME
+        # =====================================================
+
+        if account_type in {
+            "operating_income",
+            "non_operating_income",
+            "income",
+            "revenue"
+        }:
+
+            balance = credit - debit
+            revenue += balance
+
+        # =====================================================
+        # EXPENSE
+        # =====================================================
+
+        elif account_type in {
+            "operating_expense",
+            "non_operating_expense",
+            "expense"
+        }:
+
+            balance = debit - credit
+            expenses += balance
+
+        # =====================================================
+        # ASSETS
+        # =====================================================
+
+        elif account_type in {
+            "current_assets",
+            "non_current_assets",
+            "asset"
+        }:
+
+            balance = debit - credit
+            assets += balance
+
+        # =====================================================
+        # CONTRA ASSETS
+        # =====================================================
+
+        elif account_type == "contra_asset":
+
+            # Contra assets normally carry a credit balance.
+            balance = credit - debit
+            assets += balance
+
+        # =====================================================
+        # LIABILITIES
+        # =====================================================
+
+        elif account_type in {
+            "current_liabilities",
+            "non_current_liabilities",
+            "liability"
+        }:
+
+            balance = credit - debit
+            liabilities += balance
+
+        # =====================================================
+        # EQUITY
+        # =====================================================
+
+        elif account_type in {
+            "equity",
+            "capital",
+            "retained_earnings"
+        }:
+
+            balance = credit - debit
+            equity += balance
+
+        # =====================================================
+        # UNKNOWN ACCOUNT TYPE
+        # =====================================================
+
+        else:
+
+            balance = debit - credit
+
+        # =====================================================
+        # ACCOUNT SNAPSHOT
+        # =====================================================
+
+        account_balances.append({
+            "id": row.id,
+            "name": row.name,
+            "type": row.type,
+            "group_name": row.group_name,
+            "debit": debit,
+            "credit": credit,
+            "balance": balance
+        })
+
+    # =========================================================
+    # NET PROFIT
+    # =========================================================
+
+    net_profit = revenue - expenses
+
+    # --------------------------------------------------------
+    # Recent Journal Entries
+    # --------------------------------------------------------
+
+    recent_entries = (
+        db.query(JournalEntry)
+        .order_by(JournalEntry.created_at.desc())
+        .limit(8)
+        .all()
+    )
+
+    recent_activity = []
+
+    for entry in recent_entries:
+
+        total_debit = sum(
+            float(line.debit or 0)
+            for line in entry.lines
+        )
+
+        total_credit = sum(
+            float(line.credit or 0)
+            for line in entry.lines
+        )
+
+        recent_activity.append({
+            "id": entry.id,
+            "description": entry.description,
+            "date": entry.created_at.isoformat()
+            if entry.created_at
+            else None,
+            "debit": total_debit,
+            "credit": total_credit
+        })
+
+    return {
+
+        "summary": {
+            "revenue": revenue,
+            "expenses": expenses,
+            "net_profit": net_profit,
+            "assets": assets,
+            "liabilities": liabilities,
+            "equity": equity
+        },
+
+        "accounts": account_balances,
+
+        "recent_activity": recent_activity
+
+    }
+
+# ============================================================
 # JOURNAL ENTRY
 # ============================================================
 
@@ -269,16 +655,84 @@ def create_driver(data: DriverCreate, db:Session = Depends(get_db)):
 def driver_forecast(periods: int = 12, db: Session = Depends(get_db)):
     return forecast_driver_model(db, periods)
 
-@router.post("/depreciation")
-def depreciation(
-    request: DepreciationRequest,
+# ============================================================
+# FIXED ASSETS & DEPRECIATION
+# ============================================================
+
+@router.post("/fixed-assets")
+def create_fixed_asset_route(
+    data: FixedAssetCreate,
     db: Session = Depends(get_db)
 ):
-    return apply_depreciation(
-        db,
-        request.asset_name,
-        request.amount
-    )
+
+    try:
+        asset = create_fixed_asset(db, data)
+
+        return {
+            "message": "Fixed asset created successfully",
+            "asset": {
+                "id": asset.id,
+                "asset_code": asset.asset_code,
+                "asset_name": asset.asset_name,
+                "purchase_cost": asset.purchase_cost,
+                "purchase_date": asset.purchase_date.isoformat(),
+                "depreciation_method": asset.depreciation_method,
+                "depreciation_rate": asset.depreciation_rate,
+                "useful_life_months": asset.useful_life_months,
+                "salvage_value": asset.salvage_value,
+                "status": asset.status
+            }
+        }
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+
+
+@router.get("/fixed-assets")
+def list_fixed_assets(
+    db: Session = Depends(get_db)
+):
+    return get_fixed_assets(db)
+
+
+@router.get("/fixed-assets/{asset_id}/depreciation-schedule")
+def fixed_asset_schedule(
+    asset_id: int,
+    db: Session = Depends(get_db)
+):
+
+    try:
+        return get_asset_schedule(
+            db,
+            asset_id
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=str(e)
+        )
+
+
+@router.post("/depreciation-schedule/{schedule_id}/post")
+def post_depreciation(
+    schedule_id: int,
+    db: Session = Depends(get_db)
+):
+    try:
+        return post_depreciation_journal(
+            db,
+            schedule_id
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
 
 
 @router.get("/ebitda")

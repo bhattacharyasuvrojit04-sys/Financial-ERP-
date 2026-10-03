@@ -32,7 +32,7 @@ export default function Dashboard() {
   }, []);
 
   return (
-    <Layout title="Dashboard">
+    <Layout>
       {/* 🔥 KPI ROW (SEPARATE) */}
       <div style={{
         display: "grid",

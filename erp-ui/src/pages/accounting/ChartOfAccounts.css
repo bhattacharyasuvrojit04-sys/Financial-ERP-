@@ -1,0 +1,1372 @@
+/* =========================================================
+   CHART OF ACCOUNTS
+   Premium ERP / Financial SaaS Design
+   ========================================================= */
+
+.coa-page {
+  min-height: 100%;
+  padding: 30px 32px 40px;
+  background: #f6f8f7;
+  color: #17211d;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.coa-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 26px;
+}
+
+.coa-header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.coa-page-icon {
+  width: 48px;
+  height: 48px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  flex-shrink: 0;
+
+  border-radius: 13px;
+
+  background: #e7f4ed;
+  color: #16794c;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(22, 121, 76, 0.08),
+    0 2px 5px rgba(22, 50, 36, 0.04);
+}
+
+.coa-page-icon span {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.coa-eyebrow {
+  margin-bottom: 4px;
+
+  color: #7f8a85;
+
+  font-size: 9px;
+  font-weight: 800;
+
+  letter-spacing: 0.1em;
+}
+
+.coa-title {
+  margin: 0;
+
+  color: #17211d;
+
+  font-size: 26px;
+  line-height: 1.2;
+  font-weight: 750;
+
+  letter-spacing: -0.035em;
+}
+
+.coa-subtitle {
+  margin: 6px 0 0;
+
+  color: #7c8782;
+
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* =========================================================
+   PRIMARY BUTTON
+   ========================================================= */
+
+.coa-primary-btn {
+  height: 40px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  padding: 0 15px;
+
+  border: 1px solid #16794c;
+  border-radius: 9px;
+
+  background: #16794c;
+  color: #ffffff;
+
+  font-size: 12px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  box-shadow:
+    0 2px 4px rgba(22, 121, 76, 0.14);
+
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.coa-primary-btn:hover {
+  background: #126a42;
+  border-color: #126a42;
+
+  box-shadow:
+    0 4px 10px rgba(22, 121, 76, 0.18);
+
+  transform: translateY(-1px);
+}
+
+.coa-primary-btn:active {
+  transform: translateY(0);
+}
+
+.coa-primary-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.coa-plus {
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+/* =========================================================
+   SUMMARY CARDS
+   ========================================================= */
+
+.coa-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 15px;
+
+  margin-bottom: 20px;
+}
+
+.coa-summary-card {
+  position: relative;
+  overflow: hidden;
+
+  min-height: 125px;
+
+  padding: 17px 18px;
+
+  background: #ffffff;
+
+  border: 1px solid #e3e9e6;
+  border-radius: 13px;
+
+  box-shadow:
+    0 1px 2px rgba(17, 38, 27, 0.025),
+    0 5px 18px rgba(17, 38, 27, 0.025);
+
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.coa-summary-card:hover {
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 5px 18px rgba(17, 38, 27, 0.06);
+}
+
+.coa-summary-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.coa-summary-label {
+  color: #7d8883;
+
+  font-size: 10px;
+  font-weight: 750;
+
+  text-transform: uppercase;
+  letter-spacing: 0.065em;
+}
+
+.coa-summary-icon {
+  width: 29px;
+  height: 29px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 8px;
+
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.coa-summary-icon.neutral {
+  background: #f1f4f2;
+  color: #68746e;
+}
+
+.coa-summary-icon.asset {
+  background: #eaf6ef;
+  color: #237a50;
+}
+
+.coa-summary-icon.liability {
+  background: #f0f3f6;
+  color: #5d6b76;
+}
+
+.coa-summary-icon.income {
+  background: #eaf7f4;
+  color: #28796c;
+}
+
+.coa-summary-value {
+  margin-top: 14px;
+
+  color: #1b2721;
+
+  font-size: 25px;
+  line-height: 1;
+
+  font-weight: 750;
+
+  letter-spacing: -0.035em;
+}
+
+.coa-summary-footer {
+  margin-top: 9px;
+
+  color: #9aa39f;
+
+  font-size: 10px;
+}
+
+/* =========================================================
+   MAIN CARD
+   ========================================================= */
+
+.coa-main-card {
+  overflow: hidden;
+
+  background: #ffffff;
+
+  border: 1px solid #e2e8e5;
+  border-radius: 14px;
+
+  box-shadow:
+    0 1px 2px rgba(17, 38, 27, 0.025),
+    0 8px 26px rgba(17, 38, 27, 0.025);
+}
+
+/* =========================================================
+   TOOLBAR
+   ========================================================= */
+
+.coa-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+
+  padding: 14px;
+
+  border-bottom: 1px solid #edf1ef;
+}
+
+.coa-search-box {
+  position: relative;
+
+  width: 360px;
+}
+
+.coa-search-box input {
+  width: 100%;
+  height: 38px;
+
+  padding: 0 38px 0 35px;
+
+  border: 1px solid #dfe6e2;
+  border-radius: 8px;
+
+  background: #fafcfb;
+
+  color: #26332d;
+
+  outline: none;
+
+  font-size: 12px;
+
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.coa-search-box input::placeholder {
+  color: #a1aaa6;
+}
+
+.coa-search-box input:focus {
+  background: #ffffff;
+
+  border-color: #7dbb9d;
+
+  box-shadow:
+    0 0 0 3px rgba(22, 121, 76, 0.08);
+}
+
+.coa-search-icon {
+  position: absolute;
+
+  left: 12px;
+  top: 50%;
+
+  transform: translateY(-50%);
+
+  color: #8d9893;
+
+  font-size: 17px;
+
+  pointer-events: none;
+}
+
+.coa-search-clear {
+  position: absolute;
+
+  right: 8px;
+  top: 50%;
+
+  width: 23px;
+  height: 23px;
+
+  transform: translateY(-50%);
+
+  border: none;
+  border-radius: 6px;
+
+  background: #edf1ef;
+  color: #68746e;
+
+  cursor: pointer;
+
+  font-size: 15px;
+  line-height: 1;
+}
+
+.coa-search-clear:hover {
+  background: #e3e9e6;
+}
+
+.coa-filters {
+  display: flex;
+  gap: 8px;
+}
+
+.coa-select {
+  height: 38px;
+
+  min-width: 145px;
+
+  padding: 0 30px 0 11px;
+
+  border: 1px solid #dfe6e2;
+  border-radius: 8px;
+
+  background: #ffffff;
+
+  color: #4d5953;
+
+  outline: none;
+
+  font-size: 11px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.coa-select:focus {
+  border-color: #7dbb9d;
+
+  box-shadow:
+    0 0 0 3px rgba(22, 121, 76, 0.07);
+}
+
+/* =========================================================
+   TABLE HEADER
+   ========================================================= */
+
+.coa-table-header {
+  min-height: 57px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 0 18px;
+
+  border-bottom: 1px solid #edf1ef;
+}
+
+.coa-table-title {
+  color: #27332d;
+
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.coa-table-count {
+  margin-left: 8px;
+
+  color: #9aa39f;
+
+  font-size: 10px;
+}
+
+.coa-clear-filters {
+  border: none;
+  background: transparent;
+
+  color: #16794c;
+
+  font-size: 11px;
+  font-weight: 650;
+
+  cursor: pointer;
+}
+
+.coa-clear-filters:hover {
+  text-decoration: underline;
+}
+
+/* =========================================================
+   TABLE
+   ========================================================= */
+
+.coa-table-wrapper {
+  width: 100%;
+
+  overflow-x: auto;
+}
+
+.coa-table {
+  width: 100%;
+  min-width: 850px;
+
+  border-collapse: collapse;
+
+  table-layout: fixed;
+}
+
+.coa-table th {
+  height: 42px;
+
+  padding: 0 18px;
+
+  background: #f8faf9;
+
+  border-bottom: 1px solid #e2e8e5;
+
+  color: #7b8580;
+
+  font-size: 9px;
+  font-weight: 800;
+
+  text-align: left;
+
+  letter-spacing: 0.075em;
+}
+
+.coa-table th:first-child {
+  width: 32%;
+}
+
+.coa-table th:nth-child(2) {
+  width: 19%;
+}
+
+.coa-table th:nth-child(3) {
+  width: 23%;
+}
+
+.coa-table th:nth-child(4) {
+  width: 17%;
+}
+
+.coa-table th:last-child {
+  width: 9%;
+}
+
+.coa-table td {
+  height: 62px;
+
+  padding: 0 18px;
+
+  border-bottom: 1px solid #edf1ef;
+
+  color: #45514b;
+
+  font-size: 12px;
+
+  vertical-align: middle;
+}
+
+.coa-table-row {
+  transition:
+    background 0.14s ease;
+}
+
+.coa-table-row:hover {
+  background: #fafcfb;
+}
+
+.coa-table-row:last-child td {
+  border-bottom: none;
+}
+
+/* =========================================================
+   ACCOUNT CELL
+   ========================================================= */
+
+.coa-account-cell {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.coa-account-avatar {
+  width: 34px;
+  height: 34px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  flex-shrink: 0;
+
+  border-radius: 9px;
+
+  background: #edf5f0;
+  color: #287750;
+
+  font-size: 10px;
+  font-weight: 800;
+
+  letter-spacing: 0.02em;
+}
+
+.coa-account-info {
+  min-width: 0;
+}
+
+.coa-account-name {
+  overflow: hidden;
+
+  color: #29352f;
+
+  font-size: 12px;
+  font-weight: 650;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.coa-account-meta {
+  margin-top: 3px;
+
+  color: #a0a9a5;
+
+  font-size: 9px;
+}
+
+/* =========================================================
+   TYPE BADGES
+   ========================================================= */
+
+.coa-type-badge {
+  display: inline-flex;
+  align-items: center;
+
+  min-height: 24px;
+
+  padding: 0 8px;
+
+  border-radius: 6px;
+
+  background: #f1f4f2;
+  color: #65716b;
+
+  font-size: 9px;
+  font-weight: 750;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.035em;
+}
+
+.coa-type-asset {
+  background: #eaf6ef;
+  color: #24784e;
+}
+
+.coa-type-liability {
+  background: #f0f3f6;
+  color: #5a6975;
+}
+
+.coa-type-income {
+  background: #eaf7f4;
+  color: #28776b;
+}
+
+.coa-type-expense {
+  background: #f8f2ed;
+  color: #87634d;
+}
+
+.coa-type-equity {
+  background: #f3eff7;
+  color: #6d5b7b;
+}
+
+/* =========================================================
+   GROUP
+   ========================================================= */
+
+.coa-group-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  color: #59655f;
+
+  font-size: 11px;
+}
+
+.coa-group-dot {
+  width: 6px;
+  height: 6px;
+
+  flex-shrink: 0;
+
+  border-radius: 50%;
+
+  background: #a9b5af;
+}
+
+/* =========================================================
+   NORMAL BALANCE
+   ========================================================= */
+
+.coa-balance {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.coa-balance-dot {
+  width: 6px;
+  height: 6px;
+
+  border-radius: 50%;
+}
+
+.coa-balance.debit {
+  color: #496357;
+}
+
+.coa-balance.debit .coa-balance-dot {
+  background: #3d9166;
+}
+
+.coa-balance.credit {
+  color: #596675;
+}
+
+.coa-balance.credit .coa-balance-dot {
+  background: #6d8290;
+}
+
+.coa-muted {
+  color: #b1b9b5;
+}
+
+.coa-account-id {
+  display: inline-flex;
+  align-items: center;
+
+  padding: 4px 7px;
+
+  border-radius: 5px;
+
+  background: #f5f7f6;
+
+  color: #89938e;
+
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+
+  font-size: 9px;
+}
+
+/* =========================================================
+   TABLE FOOTER
+   ========================================================= */
+
+.coa-table-footer {
+  min-height: 48px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 0 18px;
+
+  border-top: 1px solid #edf1ef;
+
+  color: #909a95;
+
+  font-size: 10px;
+}
+
+.coa-table-footer strong {
+  color: #59655f;
+  font-weight: 700;
+}
+
+.coa-footer-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.coa-live-dot {
+  width: 6px;
+  height: 6px;
+
+  border-radius: 50%;
+
+  background: #32a66d;
+
+  box-shadow:
+    0 0 0 3px rgba(50, 166, 109, 0.09);
+}
+
+/* =========================================================
+   LOADING SKELETON
+   ========================================================= */
+
+.coa-skeleton-row td {
+  height: 62px;
+}
+
+.coa-skeleton {
+  height: 10px;
+
+  border-radius: 5px;
+
+  background: linear-gradient(
+    90deg,
+    #eef2f0 25%,
+    #e5ebe8 50%,
+    #eef2f0 75%
+  );
+
+  background-size: 200% 100%;
+
+  animation: coa-loading 1.5s infinite;
+}
+
+.coa-skeleton.account {
+  width: 190px;
+}
+
+.coa-skeleton.small {
+  width: 85px;
+}
+
+.coa-skeleton.medium {
+  width: 130px;
+}
+
+.coa-skeleton.tiny {
+  width: 35px;
+}
+
+@keyframes coa-loading {
+  from {
+    background-position: 200% 0;
+  }
+
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* =========================================================
+   EMPTY STATE
+   ========================================================= */
+
+.coa-empty-cell {
+  height: 300px !important;
+}
+
+.coa-empty {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.coa-empty-icon {
+  width: 45px;
+  height: 45px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  margin-bottom: 12px;
+
+  border-radius: 11px;
+
+  background: #f2f5f3;
+
+  color: #8b9690;
+
+  font-size: 19px;
+}
+
+.coa-empty h3 {
+  margin: 0 0 5px;
+
+  color: #4b5751;
+
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.coa-empty p {
+  margin: 0;
+
+  color: #9aa39f;
+
+  font-size: 11px;
+}
+
+/* =========================================================
+   MODAL OVERLAY
+   ========================================================= */
+
+.coa-modal-overlay {
+  position: fixed;
+
+  inset: 0;
+
+  z-index: 1000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 20px;
+
+  background: rgba(18, 29, 24, 0.42);
+
+  backdrop-filter: blur(4px);
+
+  animation: coa-fade-in 0.18s ease;
+}
+
+@keyframes coa-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* =========================================================
+   MODAL
+   ========================================================= */
+
+.coa-modal {
+  width: 100%;
+  max-width: 510px;
+
+  overflow: hidden;
+
+  background: #ffffff;
+
+  border: 1px solid #dfe6e2;
+  border-radius: 16px;
+
+  box-shadow:
+    0 24px 60px rgba(12, 30, 20, 0.18),
+    0 5px 15px rgba(12, 30, 20, 0.06);
+
+  animation: coa-modal-in 0.2s ease;
+}
+
+@keyframes coa-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* =========================================================
+   MODAL HEADER
+   ========================================================= */
+
+.coa-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  padding: 21px 22px;
+
+  border-bottom: 1px solid #edf1ef;
+}
+
+.coa-modal-header > div:first-child {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.coa-modal-icon {
+  width: 36px;
+  height: 36px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  flex-shrink: 0;
+
+  border-radius: 9px;
+
+  background: #e8f5ed;
+  color: #16794c;
+
+  font-size: 21px;
+  font-weight: 400;
+}
+
+.coa-modal-header h2 {
+  margin: 1px 0 4px;
+
+  color: #1c2822;
+
+  font-size: 16px;
+  font-weight: 750;
+
+  letter-spacing: -0.02em;
+}
+
+.coa-modal-header p {
+  margin: 0;
+
+  color: #8a9490;
+
+  font-size: 11px;
+}
+
+.coa-modal-close {
+  width: 29px;
+  height: 29px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: none;
+  border-radius: 7px;
+
+  background: transparent;
+
+  color: #8c9691;
+
+  font-size: 20px;
+
+  cursor: pointer;
+}
+
+.coa-modal-close:hover {
+  background: #f1f4f2;
+  color: #4d5953;
+}
+
+/* =========================================================
+   MODAL BODY
+   ========================================================= */
+
+.coa-modal-body {
+  padding: 22px;
+}
+
+.coa-form-group {
+  margin-bottom: 19px;
+}
+
+.coa-form-group:last-of-type {
+  margin-bottom: 14px;
+}
+
+.coa-form-group label {
+  display: block;
+
+  margin-bottom: 7px;
+
+  color: #4c5952;
+
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.coa-form-group label span {
+  margin-left: 3px;
+
+  color: #d25f55;
+}
+
+.coa-form-group input,
+.coa-form-group select {
+  width: 100%;
+  height: 40px;
+
+  padding: 0 11px;
+
+  border: 1px solid #dce4df;
+  border-radius: 8px;
+
+  background: #ffffff;
+
+  color: #26332d;
+
+  outline: none;
+
+  font-size: 12px;
+
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.coa-form-group input::placeholder {
+  color: #a4ada9;
+}
+
+.coa-form-group input:focus,
+.coa-form-group select:focus {
+  border-color: #6fb28f;
+
+  box-shadow:
+    0 0 0 3px rgba(22, 121, 76, 0.08);
+}
+
+.coa-form-group small {
+  display: block;
+
+  margin-top: 6px;
+
+  color: #9ba49f;
+
+  font-size: 9px;
+}
+
+/* =========================================================
+   GROUP PREVIEW
+   ========================================================= */
+
+.coa-group-preview {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+
+  margin-top: 4px;
+  padding: 11px 12px;
+
+  border: 1px solid #dceee3;
+  border-radius: 9px;
+
+  background: #f5fbf7;
+}
+
+.coa-preview-icon {
+  width: 23px;
+  height: 23px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  flex-shrink: 0;
+
+  border-radius: 6px;
+
+  background: #dcefe3;
+  color: #20784e;
+
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.coa-group-preview strong {
+  color: #316348;
+
+  font-size: 11px;
+}
+
+.coa-group-preview p {
+  margin: 3px 0 0;
+
+  color: #789082;
+
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+/* =========================================================
+   ERROR
+   ========================================================= */
+
+.coa-form-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  margin-top: 13px;
+  padding: 9px 10px;
+
+  border: 1px solid #f0d5d1;
+  border-radius: 8px;
+
+  background: #fff7f6;
+
+  color: #a54e45;
+
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.coa-form-error span {
+  width: 17px;
+  height: 17px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: #f2d7d3;
+  color: #a54e45;
+
+  font-size: 10px;
+}
+
+/* =========================================================
+   MODAL FOOTER
+   ========================================================= */
+
+.coa-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+
+  padding: 14px 22px;
+
+  border-top: 1px solid #edf1ef;
+
+  background: #fbfcfb;
+}
+
+.coa-secondary-btn {
+  height: 38px;
+
+  padding: 0 14px;
+
+  border: 1px solid #dfe6e2;
+  border-radius: 8px;
+
+  background: #ffffff;
+
+  color: #59655f;
+
+  font-size: 11px;
+  font-weight: 650;
+
+  cursor: pointer;
+}
+
+.coa-secondary-btn:hover {
+  background: #f7f9f8;
+}
+
+.coa-secondary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* =========================================================
+   SPINNER
+   ========================================================= */
+
+.coa-spinner {
+  width: 13px;
+  height: 13px;
+
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+
+  border-radius: 50%;
+
+  animation: coa-spin 0.7s linear infinite;
+}
+
+@keyframes coa-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1100px) {
+  .coa-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .coa-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .coa-search-box {
+    width: 100%;
+  }
+
+  .coa-filters {
+    width: 100%;
+  }
+
+  .coa-select {
+    flex: 1;
+  }
+}
+
+@media (max-width: 700px) {
+  .coa-page {
+    padding: 20px 16px 30px;
+  }
+
+  .coa-header {
+    flex-direction: column;
+  }
+
+  .coa-header .coa-primary-btn {
+    width: 100%;
+  }
+
+  .coa-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .coa-filters {
+    flex-direction: column;
+  }
+
+  .coa-select {
+    width: 100%;
+  }
+
+  .coa-table-header {
+    min-height: 52px;
+  }
+
+  .coa-table-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: center;
+    gap: 7px;
+
+    padding: 10px 16px;
+  }
+
+  .coa-modal {
+    max-height: 90vh;
+
+    overflow-y: auto;
+  }
+}
+
+/* =========================================================
+   PRINT
+   ========================================================= */
+
+@media print {
+  .coa-page {
+    padding: 0;
+    background: #ffffff;
+  }
+
+  .coa-header .coa-primary-btn,
+  .coa-toolbar,
+  .coa-clear-filters {
+    display: none !important;
+  }
+
+  .coa-main-card,
+  .coa-summary-card {
+    box-shadow: none;
+  }
+
+  .coa-table-row:hover {
+    background: transparent;
+  }
+}

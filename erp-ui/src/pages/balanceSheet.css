@@ -1,0 +1,1075 @@
+/* ============================================================
+   BALANCE SHEET PAGE
+============================================================ */
+
+.bs-page {
+    width: 100%;
+    max-width: none;
+
+    margin: 0;
+    padding: 24px 28px 36px;
+
+    box-sizing: border-box;
+
+    background: #f4f7f5;
+}
+
+
+/* ============================================================
+   HEADER
+============================================================ */
+
+.bs-header {
+    width: 100%;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 20px;
+
+    margin-bottom: 18px;
+}
+
+.bs-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.bs-title-icon {
+    width: 38px;
+    height: 38px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    flex-shrink: 0;
+
+    border-radius: 10px;
+
+    background: #e7f6ef;
+    color: #087a50;
+
+    font-size: 17px;
+    font-weight: 700;
+}
+
+.bs-header h1 {
+    margin: 0;
+
+    color: #111827;
+
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.bs-header p {
+    margin: 4px 0 0;
+
+    color: #71807a;
+
+    font-size: 11px;
+}
+
+.bs-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+
+/* ============================================================
+   BUTTONS
+============================================================ */
+
+.bs-secondary-button,
+.bs-primary-button {
+    height: 32px;
+
+    padding: 0 12px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 6px;
+
+    font-size: 10px;
+    font-weight: 600;
+
+    cursor: pointer;
+
+    transition: all 0.15s ease;
+}
+
+.bs-secondary-button {
+    background: #07845b;
+    border: 1px solid #07845b;
+    color: #ffffff;
+}
+
+.bs-secondary-button:hover {
+    background: #066f4d;
+}
+
+.bs-primary-button {
+    background: #07845b;
+    border: 1px solid #07845b;
+    color: #ffffff;
+}
+
+.bs-primary-button:hover {
+    background: #066f4d;
+}
+
+
+/* ============================================================
+   REPORTING PERIOD
+============================================================ */
+
+.bs-period-card {
+    width: 100%;
+
+    min-height: 52px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 8px 12px;
+
+    margin-bottom: 15px;
+
+    box-sizing: border-box;
+
+    background: #ffffff;
+
+    border: 1px solid #e0e7e3;
+    border-radius: 10px;
+}
+
+.bs-period-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.bs-period-label {
+    color: #37423d;
+
+    font-size: 10px;
+    font-weight: 600;
+
+    white-space: nowrap;
+}
+
+.bs-period-tabs {
+    display: flex;
+    align-items: center;
+
+    padding: 3px;
+
+    background: #f1f5f3;
+
+    border-radius: 7px;
+}
+
+.bs-period-tab {
+    height: 27px;
+
+    padding: 0 13px;
+
+    border: none;
+    border-radius: 5px;
+
+    background: transparent;
+
+    color: #65716c;
+
+    font-size: 10px;
+    font-weight: 600;
+
+    cursor: pointer;
+}
+
+.bs-period-tab.active {
+    background: #07845b;
+    color: #ffffff;
+}
+
+.bs-period-tab:hover:not(.active) {
+    color: #07845b;
+}
+
+.bs-period-info {
+    color: #8a938f;
+
+    font-size: 9px;
+}
+
+
+/* ============================================================
+   SUMMARY CARDS
+============================================================ */
+
+.bs-summary-grid {
+    width: 100%;
+
+    display: grid;
+
+    grid-template-columns:
+        repeat(4, minmax(0, 1fr));
+
+    gap: 12px;
+
+    margin-bottom: 15px;
+}
+
+.bs-summary-card {
+    position: relative;
+
+    min-height: 91px;
+
+    padding: 13px 14px;
+
+    box-sizing: border-box;
+
+    overflow: hidden;
+
+    background: #ffffff;
+
+    border: 1px solid #e0e7e3;
+    border-radius: 10px;
+}
+
+.bs-summary-card::after {
+    content: "";
+
+    position: absolute;
+
+    width: 60px;
+    height: 60px;
+
+    right: -16px;
+    bottom: -24px;
+
+    border-radius: 50%;
+
+    background: #f3f7f5;
+}
+
+.bs-summary-top {
+    position: relative;
+    z-index: 1;
+
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.bs-summary-icon {
+    width: 22px;
+    height: 22px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 6px;
+
+    background: #e8f6ef;
+    color: #07845b;
+
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.bs-summary-title {
+    color: #68736e;
+
+    font-size: 9px;
+}
+
+.bs-summary-value {
+    position: relative;
+    z-index: 1;
+
+    margin-top: 10px;
+
+    color: #07845b;
+
+    font-size: 17px;
+    font-weight: 700;
+}
+
+
+/* LIABILITY */
+
+.bs-summary-card.liability .bs-summary-icon {
+    background: #fff0ef;
+    color: #b64b43;
+}
+
+.bs-summary-card.liability .bs-summary-value {
+    color: #b64b43;
+}
+
+
+/* EQUITY */
+
+.bs-summary-card.equity .bs-summary-icon {
+    background: #eef0ff;
+    color: #535b9e;
+}
+
+.bs-summary-card.equity .bs-summary-value {
+    color: #535b9e;
+}
+
+
+/* ============================================================
+   BALANCE CHECK
+============================================================ */
+
+.bs-summary-card.balanced {
+    border-color: #e0e7e3;
+}
+
+.bs-summary-card.unbalanced {
+    border-color: #efd1ce;
+}
+
+.bs-balance-status {
+    position: relative;
+    z-index: 1;
+
+    display: flex;
+    align-items: center;
+
+    gap: 6px;
+
+    margin-top: 9px;
+
+    color: #16804b;
+
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.bs-summary-card.unbalanced .bs-balance-status {
+    color: #b64b43;
+}
+
+.bs-balance-dot {
+    width: 6px;
+    height: 6px;
+
+    border-radius: 50%;
+
+    background: #16804b;
+}
+
+.bs-balance-dot.unbalanced {
+    background: #b64b43;
+}
+
+.bs-balance-difference {
+    position: relative;
+    z-index: 1;
+
+    margin-top: 4px;
+
+    color: #8a938f;
+
+    font-size: 8px;
+}
+
+
+/* ============================================================
+   STATEMENT
+============================================================ */
+
+.bs-statement-card {
+    width: 100%;
+
+    background: #ffffff;
+
+    border: 1px solid #e0e7e3;
+    border-radius: 10px;
+
+    overflow: hidden;
+}
+
+.bs-statement-header {
+    min-height: 59px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 12px 15px;
+
+    box-sizing: border-box;
+
+    border-bottom: 1px solid #e5ebe8;
+}
+
+.bs-statement-header h2 {
+    margin: 0;
+
+    color: #111827;
+
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.bs-statement-header p {
+    margin: 3px 0 0;
+
+    color: #7a8580;
+
+    font-size: 9px;
+}
+
+
+/* ============================================================
+   STATUS
+============================================================ */
+
+.bs-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+
+    padding: 5px 9px;
+
+    border-radius: 20px;
+
+    font-size: 9px;
+    font-weight: 600;
+}
+
+.bs-status.balanced {
+    background: #eaf7f0;
+    color: #16804b;
+}
+
+.bs-status.unbalanced {
+    background: #fff0ef;
+    color: #b64b43;
+}
+
+.bs-status-dot {
+    width: 5px;
+    height: 5px;
+
+    border-radius: 50%;
+
+    background: currentColor;
+}
+
+
+/* ============================================================
+   TABLE
+============================================================ */
+
+.bs-table-wrapper {
+    width: 100%;
+
+    overflow-x: auto;
+}
+
+.bs-table {
+    width: 100%;
+
+    min-width: 700px;
+
+    border-collapse: collapse;
+}
+
+.bs-table thead {
+    background: #f7f9f8;
+}
+
+.bs-table th {
+    height: 29px;
+
+    padding: 0 10px;
+
+    color: #68736e;
+
+    font-size: 8px;
+    font-weight: 600;
+
+    border-bottom: 1px solid #e5ebe8;
+}
+
+.bs-account-header {
+    width: 45%;
+
+    text-align: left;
+}
+
+.bs-period-header {
+    text-align: right;
+}
+
+
+/* ============================================================
+   SECTION
+============================================================ */
+
+.bs-section-row {
+    background: #f0f6f3;
+}
+
+.bs-section-cell {
+    padding: 8px 10px !important;
+
+    color: #174d3b !important;
+
+    font-size: 9px !important;
+    font-weight: 700 !important;
+
+    text-align: left !important;
+}
+
+.bs-section-icon {
+    width: 16px;
+    height: 16px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    margin-right: 6px;
+
+    border-radius: 5px;
+
+    background: #dcefe7;
+
+    color: #087a50;
+
+    font-size: 8px;
+}
+
+
+/* ============================================================
+   SUBSECTION
+============================================================ */
+
+.bs-subsection-row {
+    background: #fafcfb;
+}
+
+.bs-subsection-cell {
+    padding: 7px 10px 7px 18px !important;
+
+    color: #34413b !important;
+
+    font-size: 8px !important;
+    font-weight: 700 !important;
+
+    text-align: left !important;
+}
+
+.bs-subsection-line {
+    display: inline-block;
+
+    width: 4px;
+    height: 4px;
+
+    margin-right: 7px;
+
+    vertical-align: middle;
+
+    border-radius: 50%;
+
+    background: #9aa8a2;
+}
+
+
+/* ============================================================
+   ACCOUNT ROW
+============================================================ */
+
+.bs-account-row td {
+    border-bottom: 1px solid #edf1ef;
+}
+
+.bs-account-row:hover {
+    background: #fafcfb;
+}
+
+.bs-account-cell {
+    padding: 7px 10px;
+
+    color: #37423d;
+
+    font-size: 9px;
+
+    text-align: left;
+
+    white-space: nowrap;
+}
+
+.bs-account-dot {
+    display: inline-block;
+
+    width: 4px;
+    height: 4px;
+
+    margin-right: 7px;
+
+    vertical-align: middle;
+
+    border-radius: 50%;
+
+    background: #b8c4bf;
+}
+
+.bs-value-cell {
+    padding: 7px 10px;
+
+    color: #47534e;
+
+    font-size: 9px;
+
+    text-align: right;
+
+    white-space: nowrap;
+}
+
+
+/* ============================================================
+   TOTAL
+============================================================ */
+
+.bs-total-row {
+    background: #f7faf8;
+}
+
+.bs-total-row td {
+    border-top: 1px solid #dce5e1;
+    border-bottom: 1px solid #dce5e1;
+}
+
+.bs-total-label,
+.bs-total-value {
+    padding: 8px 10px;
+
+    color: #1f3029;
+
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.bs-total-label {
+    text-align: left;
+}
+
+.bs-total-value {
+    text-align: right;
+}
+
+
+/* ============================================================
+   GRAND TOTAL
+============================================================ */
+
+.bs-grand-total-row {
+    background: #eef7f2;
+}
+
+.bs-grand-total-row td {
+    border-top: 1px solid #cfe1d8;
+    border-bottom: 1px solid #cfe1d8;
+}
+
+.bs-grand-total-label,
+.bs-grand-total-value {
+    padding: 9px 10px;
+
+    color: #174d3b;
+
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.bs-grand-total-label {
+    text-align: left;
+}
+
+.bs-grand-total-value {
+    text-align: right;
+}
+
+
+/* ============================================================
+   BALANCE CHECK ROW
+============================================================ */
+
+.bs-check-row {
+    background: #ffffff;
+}
+
+.bs-check-label {
+    padding: 9px 10px;
+
+    color: #34413b;
+
+    font-size: 9px;
+    font-weight: 700;
+
+    text-align: left;
+}
+
+.bs-check-icon {
+    width: 15px;
+    height: 15px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    margin-right: 6px;
+
+    border-radius: 50%;
+
+    background: #e7f6ef;
+    color: #16804b;
+
+    font-size: 8px;
+}
+
+.bs-check-value {
+    padding: 9px 10px;
+
+    font-size: 9px;
+    font-weight: 600;
+
+    text-align: right;
+}
+
+.bs-check-value.balanced {
+    color: #16804b;
+}
+
+.bs-check-value.unbalanced {
+    color: #b64b43;
+}
+
+.bs-check-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.bs-check-dot {
+    width: 5px;
+    height: 5px;
+
+    border-radius: 50%;
+
+    background: currentColor;
+}
+
+
+/* ============================================================
+   FOOTER
+============================================================ */
+
+.bs-footer-note {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+
+    margin-top: 10px;
+
+    color: #8a938f;
+
+    font-size: 9px;
+}
+
+.bs-footer-icon {
+    width: 15px;
+    height: 15px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+
+    background: #e7f6ef;
+    color: #16804b;
+
+    font-size: 8px;
+}
+
+
+/* ============================================================
+   LOADING
+============================================================ */
+
+.bs-loading-card {
+    min-height: 280px;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    gap: 12px;
+
+    background: #ffffff;
+
+    border: 1px solid #e0e7e3;
+    border-radius: 10px;
+
+    color: #7a8580;
+
+    font-size: 11px;
+}
+
+.bs-spinner {
+    width: 24px;
+    height: 24px;
+
+    border: 2px solid #dfe8e3;
+    border-top-color: #07845b;
+
+    border-radius: 50%;
+
+    animation: bs-spin 0.8s linear infinite;
+}
+
+@keyframes bs-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+
+/* ============================================================
+   ERROR
+============================================================ */
+
+.bs-error-card {
+    display: flex;
+    align-items: flex-start;
+
+    gap: 12px;
+
+    padding: 20px;
+
+    background: #ffffff;
+
+    border: 1px solid #efd1ce;
+    border-radius: 10px;
+}
+
+.bs-error-icon {
+    width: 30px;
+    height: 30px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    flex-shrink: 0;
+
+    border-radius: 50%;
+
+    background: #fff0ef;
+    color: #b64b43;
+
+    font-weight: 700;
+}
+
+.bs-error-card h3 {
+    margin: 0 0 4px;
+
+    color: #2d3431;
+
+    font-size: 13px;
+}
+
+.bs-error-card p {
+    margin: 0 0 12px;
+
+    color: #7a8580;
+
+    font-size: 10px;
+}
+
+
+/* ============================================================
+   EMPTY
+============================================================ */
+
+.bs-empty-card {
+    min-height: 300px;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    padding: 30px;
+
+    background: #ffffff;
+
+    border: 1px solid #e0e7e3;
+    border-radius: 10px;
+
+    text-align: center;
+}
+
+.bs-empty-icon {
+    width: 42px;
+    height: 42px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    margin-bottom: 12px;
+
+    border-radius: 12px;
+
+    background: #e7f6ef;
+    color: #087a50;
+
+    font-weight: 700;
+}
+
+.bs-empty-card h3 {
+    margin: 0 0 5px;
+
+    color: #27332e;
+
+    font-size: 14px;
+}
+
+.bs-empty-card p {
+    max-width: 400px;
+
+    margin: 0 0 15px;
+
+    color: #7a8580;
+
+    font-size: 10px;
+    line-height: 1.6;
+}
+
+
+/* ============================================================
+   RESPONSIVE
+============================================================ */
+
+@media (max-width: 1100px) {
+
+    .bs-page {
+        padding: 22px;
+    }
+
+    .bs-summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+
+@media (max-width: 700px) {
+
+    .bs-page {
+        padding: 18px 14px 28px;
+    }
+
+    .bs-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .bs-header-actions {
+        width: 100%;
+    }
+
+    .bs-secondary-button {
+        flex: 1;
+    }
+
+    .bs-period-card {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .bs-period-left {
+        width: 100%;
+
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .bs-period-tabs {
+        width: 100%;
+    }
+
+    .bs-period-tab {
+        flex: 1;
+    }
+
+    .bs-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .bs-statement-header {
+        align-items: flex-start;
+        flex-direction: column;
+
+        gap: 10px;
+    }
+}
+
+
+/* ============================================================
+   PRINT
+============================================================ */
+
+@media print {
+
+    .bs-page {
+        width: 100%;
+        max-width: none;
+
+        padding: 0;
+
+        background: #ffffff;
+    }
+
+    .bs-header-actions,
+    .bs-period-card,
+    .bs-footer-note {
+        display: none !important;
+    }
+
+    .bs-summary-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .bs-summary-card,
+    .bs-statement-card {
+        box-shadow: none;
+    }
+
+    .bs-table-wrapper {
+        overflow: visible;
+    }
+
+    .bs-table {
+        min-width: 0;
+    }
+}

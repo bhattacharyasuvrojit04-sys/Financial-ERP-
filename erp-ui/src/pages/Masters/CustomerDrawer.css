@@ -1,0 +1,335 @@
+.drawer-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(17, 24, 39, 0.35);
+    z-index: 1000;
+    display: flex;
+    justify-content: flex-end;
+}
+
+
+.customer-drawer {
+    width: 520px;
+    max-width: 100%;
+    height: 100vh;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -8px 0 30px rgba(0, 0, 0, 0.12);
+    animation: drawerSlideIn 0.22s ease-out;
+}
+
+
+@keyframes drawerSlideIn {
+
+    from {
+        transform: translateX(100%);
+    }
+
+    to {
+        transform: translateX(0);
+    }
+
+}
+
+
+/* =========================================
+   HEADER
+========================================= */
+
+.drawer-header {
+    padding: 25px 27px 21px;
+    border-bottom: 1px solid #e9ebf0;
+    display: flex;
+    justify-content: space-between;
+    flex-shrink: 0;
+}
+
+
+.drawer-eyebrow {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #5965d8;
+}
+
+
+.drawer-header h2 {
+    margin: 6px 0 4px;
+    font-size: 22px;
+    color: #202636;
+}
+
+
+.drawer-header p {
+    margin: 0;
+    font-size: 12px;
+    color: #8a91a0;
+}
+
+
+.drawer-close {
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 8px;
+    background: #f5f6f8;
+    color: #656c7a;
+    font-size: 23px;
+    cursor: pointer;
+}
+
+
+.drawer-close:hover {
+    background: #eceef2;
+}
+
+
+/* =========================================
+   FORM
+========================================= */
+
+.customer-form {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 27px 100px;
+}
+
+
+.form-section {
+    margin-bottom: 28px;
+}
+
+
+.form-section-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #303746;
+    margin-bottom: 15px;
+    padding-bottom: 9px;
+    border-bottom: 1px solid #f0f1f4;
+}
+
+
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 17px 15px;
+}
+
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+
+.form-field.full {
+    grid-column: 1 / -1;
+}
+
+
+.form-field label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #5f6675;
+}
+
+
+.form-field label span {
+    color: #e05d5d;
+    margin-left: 3px;
+}
+
+
+.form-field input,
+.form-field select,
+.form-field textarea {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #dfe2e8;
+    border-radius: 8px;
+    background: #fafbfc;
+    color: #303746;
+    font-size: 13px;
+    outline: none;
+    transition: border 0.15s, box-shadow 0.15s;
+}
+
+
+.form-field input,
+.form-field select {
+    height: 40px;
+    padding: 0 11px;
+}
+
+
+.form-field textarea {
+    padding: 10px 11px;
+    resize: vertical;
+    font-family: inherit;
+    line-height: 1.5;
+}
+
+
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus {
+    border-color: #6672dd;
+    box-shadow: 0 0 0 3px rgba(89, 101, 216, 0.08);
+    background: #ffffff;
+}
+
+
+.form-field input:disabled {
+    background: #f1f2f5;
+    color: #8b91a0;
+    cursor: not-allowed;
+}
+
+
+.form-field input::placeholder,
+.form-field textarea::placeholder {
+    color: #adb2bd;
+}
+
+
+/* =========================================
+   INPUT PREFIX / SUFFIX
+========================================= */
+
+.input-with-prefix,
+.input-with-suffix {
+    height: 40px;
+    border: 1px solid #dfe2e8;
+    border-radius: 8px;
+    background: #fafbfc;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+}
+
+
+.input-with-prefix span,
+.input-with-suffix span {
+    padding: 0 11px;
+    color: #8a91a0;
+    font-size: 12px;
+}
+
+
+.input-with-prefix input,
+.input-with-suffix input {
+    border: none;
+    box-shadow: none;
+    height: 100%;
+    background: transparent;
+}
+
+
+.input-with-prefix input:focus,
+.input-with-suffix input:focus {
+    box-shadow: none;
+}
+
+
+/* =========================================
+   ERROR
+========================================= */
+
+.form-error {
+    padding: 11px 13px;
+    margin-bottom: 18px;
+    border-radius: 8px;
+    background: #fff1f1;
+    border: 1px solid #f3d1d1;
+    color: #c45151;
+    font-size: 12px;
+}
+
+
+/* =========================================
+   FOOTER
+========================================= */
+
+.drawer-footer {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 520px;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 16px 27px;
+    background: rgba(255, 255, 255, 0.97);
+    border-top: 1px solid #e8eaf0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+
+.drawer-cancel,
+.drawer-save {
+    height: 40px;
+    padding: 0 17px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+
+.drawer-cancel {
+    border: 1px solid #dfe2e8;
+    background: #ffffff;
+    color: #626978;
+}
+
+
+.drawer-cancel:hover {
+    background: #f7f8fa;
+}
+
+
+.drawer-save {
+    border: none;
+    background: #4f5bd5;
+    color: white;
+}
+
+
+.drawer-save:hover {
+    background: #434fc6;
+}
+
+
+.drawer-save:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+
+/* =========================================
+   MOBILE
+========================================= */
+
+@media (max-width: 600px) {
+
+    .customer-drawer {
+        width: 100%;
+    }
+
+    .drawer-footer {
+        width: 100%;
+    }
+
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .form-field.full {
+        grid-column: auto;
+    }
+
+}

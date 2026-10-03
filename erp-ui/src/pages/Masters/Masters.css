@@ -1,0 +1,357 @@
+.masters-page {
+    padding: 30px 34px;
+    background: #f6f7fb;
+    min-height: 100vh;
+}
+
+
+/* =========================================
+   HEADER
+========================================= */
+
+.masters-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 28px;
+}
+
+.masters-breadcrumb {
+    font-size: 13px;
+    color: #8a91a3;
+    margin-bottom: 8px;
+}
+
+.masters-header h1 {
+    margin: 0;
+    font-size: 30px;
+    font-weight: 700;
+    color: #1d2433;
+    letter-spacing: -0.5px;
+}
+
+.masters-header p {
+    margin: 7px 0 0;
+    color: #7b8291;
+    font-size: 14px;
+}
+
+
+/* =========================================
+   STAT CARDS
+========================================= */
+
+.masters-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+    margin-bottom: 24px;
+}
+
+.master-stat-card {
+    background: white;
+    border: 1px solid #e9ebf0;
+    border-radius: 14px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    box-shadow: 0 2px 8px rgba(25, 35, 55, 0.03);
+}
+
+.master-stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    font-weight: 700;
+}
+
+.product-icon {
+    background: #eef2ff;
+    color: #5965d8;
+}
+
+.customer-icon {
+    background: #edf9f4;
+    color: #2c9b72;
+}
+
+.supplier-icon {
+    background: #fff4e8;
+    color: #d88932;
+}
+
+.master-stat-card span {
+    display: block;
+    font-size: 13px;
+    color: #858c9d;
+    margin-bottom: 4px;
+}
+
+.master-stat-card strong {
+    display: block;
+    font-size: 23px;
+    color: #202636;
+}
+
+.master-stat-card small {
+    color: #9ba1ae;
+    font-size: 11px;
+}
+
+
+/* =========================================
+   MAIN PANEL
+========================================= */
+
+.masters-panel {
+    background: white;
+    border: 1px solid #e7e9ef;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 3px 12px rgba(25, 35, 55, 0.035);
+}
+
+
+/* =========================================
+   TABS
+========================================= */
+
+.master-tabs {
+    display: flex;
+    padding: 0 24px;
+    border-bottom: 1px solid #eceef3;
+}
+
+.master-tab {
+    border: none;
+    background: transparent;
+    padding: 18px 22px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #858c9c;
+    cursor: pointer;
+    position: relative;
+}
+
+.master-tab:hover {
+    color: #303746;
+}
+
+.master-tab.active {
+    color: #4e5bd5;
+}
+
+.master-tab.active::after {
+    content: "";
+    position: absolute;
+    bottom: -1px;
+    left: 15px;
+    right: 15px;
+    height: 2px;
+    background: #4e5bd5;
+    border-radius: 3px 3px 0 0;
+}
+
+
+/* =========================================
+   TOOLBAR
+========================================= */
+
+.master-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+}
+
+.master-search {
+    width: 340px;
+    height: 42px;
+    border: 1px solid #e1e4eb;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    padding: 0 13px;
+    gap: 9px;
+    background: #fafbfc;
+}
+
+.master-search span {
+    font-size: 21px;
+    color: #8c93a2;
+}
+
+.master-search input {
+    border: none;
+    outline: none;
+    background: transparent;
+    width: 100%;
+    font-size: 13px;
+    color: #303746;
+}
+
+.master-search input::placeholder {
+    color: #a0a6b2;
+}
+
+.add-master-btn {
+    height: 42px;
+    padding: 0 17px;
+    border: none;
+    border-radius: 8px;
+    background: #4f5bd5;
+    color: white;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.add-master-btn:hover {
+    background: #434fc6;
+}
+
+.add-master-btn span {
+    font-size: 19px;
+    line-height: 1;
+}
+
+
+/* =========================================
+   TABLE
+========================================= */
+
+.master-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.master-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 900px;
+}
+
+.master-table thead {
+    background: #fafbfc;
+}
+
+.master-table th {
+    text-align: left;
+    padding: 13px 20px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #9298a7;
+    border-top: 1px solid #eef0f4;
+    border-bottom: 1px solid #eef0f4;
+}
+
+.master-table td {
+    padding: 16px 20px;
+    border-bottom: 1px solid #f0f1f4;
+    font-size: 13px;
+    color: #4a5160;
+    white-space: nowrap;
+}
+
+.master-table tbody tr:hover {
+    background: #fafbfe;
+}
+
+.master-table td strong {
+    color: #303746;
+    font-weight: 600;
+}
+
+
+/* =========================================
+   STATUS
+========================================= */
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.status-badge.active {
+    background: #eaf8f1;
+    color: #29966b;
+}
+
+.status-badge.inactive {
+    background: #f8ecec;
+    color: #c35b5b;
+}
+
+
+/* =========================================
+   ROW ACTION
+========================================= */
+
+.row-action {
+    border: none;
+    background: transparent;
+    color: #8c93a2;
+    font-size: 19px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+.row-action:hover {
+    background: #f0f1f5;
+}
+
+
+/* =========================================
+   LOADING
+========================================= */
+
+.master-loading {
+    min-height: 250px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #8c93a2;
+    font-size: 14px;
+}
+
+
+/* =========================================
+   RESPONSIVE
+========================================= */
+
+@media (max-width: 900px) {
+
+    .masters-page {
+        padding: 22px;
+    }
+
+    .masters-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .master-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .master-search {
+        width: auto;
+    }
+
+}

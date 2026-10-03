@@ -1,198 +1,818 @@
 const BASE_URL = "http://127.0.0.1:8000";
 
+
+// =====================================================
+// TRANSACTIONS
+// =====================================================
+
 export const addTransaction = async (data) => {
-    await fetch(`${BASE_URL}/transaction`, {
+    const response = await fetch(`${BASE_URL}/transaction`, {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
+        headers: {
+            "Content-Type": "application/json",
+        },
         body: JSON.stringify(data),
     });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to add transaction");
+    }
+
+    return response.json();
 };
 
-export const getForecast = async (params = {}) => {
-  const query = new URLSearchParams(params).toString();
-  const res = await fetch(`http://localhost:8000/forecast?${query}`);
-  return res.json();
+
+export const getTransactions = async () => {
+    const response = await fetch(`${BASE_URL}/transactions`);
+
+    if (!response.ok) {
+        throw new Error("Failed to fetch transactions");
+    }
+
+    return response.json();
 };
 
-export const getPnl = async ({mode, period, start_date, end_date, use_driver} = {}) => {
-    let url =  `${BASE_URL}/pnl`;
+
+export const deleteTransaction = async (id) => {
+    const response = await fetch(
+        `${BASE_URL}/transaction/${id}`,
+        {
+            method: "DELETE",
+        }
+    );
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to delete transaction");
+    }
+
+    return response.json();
+};
+
+
+// =====================================================
+// ACCOUNTS
+// =====================================================
+
+export async function getAccounts() {
+
+    const response = await fetch(
+        `${BASE_URL}/accounts`
+    );
+
+    if (!response.ok) {
+        throw new Error("Failed to fetch accounts");
+    }
+
+    return response.json();
+}
+
+export async function createAccount(payload) {
+
+  const response = await fetch(
+    `${BASE_URL}/accounts`,
+    {
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      },
+
+      body: JSON.stringify(payload),
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+
+    throw new Error(
+      data?.detail ||
+      "Failed to create account"
+    );
+
+  }
+
+  return data;
+}
+
+
+// =====================================================
+// JOURNAL
+// =====================================================
+
+export async function postJournalEntry(payload) {
+
+    const response = await fetch(
+        `${BASE_URL}/journal`,
+        {
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+
+            body: JSON.stringify(payload),
+        }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(
+            data?.detail || "Failed to post journal entry"
+        );
+    }
+
+    return data;
+}
+
+// =====================================================
+// GENERAL LEDGER
+// =====================================================
+
+export const getGeneralLedger = async (accountId = "") => {
+
+    const url = accountId
+        ? `${BASE_URL}/general-ledger?account_id=${accountId}`
+        : `${BASE_URL}/general-ledger`;
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+            errorText || "Failed to fetch general ledger"
+        );
+    }
+
+    return response.json();
+};
+
+
+// =====================================================
+// TRIAL BALANCE
+// =====================================================
+
+export const getTrialBalance = async () => {
+
+    const response = await fetch(
+        `${BASE_URL}/trial-balance`
+    );
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+            errorText || "Failed to fetch trial balance"
+        );
+    }
+
+    return response.json();
+};
+
+// =====================================================
+// ACCOUNTING OVERVIEW
+// =====================================================
+
+export const getAccountingOverview = async () => {
+
+    const response = await fetch(
+        `${BASE_URL}/accounting-overview`
+    );
+
+    if (!response.ok) {
+        const errorText = await response.text();
+
+        throw new Error(
+            errorText || "Failed to fetch accounting overview"
+        );
+    }
+
+    return response.json();
+};
+
+// =====================================================
+// PROFIT & LOSS
+// =====================================================
+
+export const getPnl = async ({
+    mode,
+    period,
+    start_date,
+    end_date,
+    use_driver,
+} = {}) => {
+
+    let url = `${BASE_URL}/pnl`;
+
     const params = new URLSearchParams();
 
-    if(mode) params.append("mode", mode);
-    if (period) params.append("period", period);
-    if (start_date) params.append("start_date", start_date);
-    if (end_date) params.append("end_date", end_date);
+    if (mode) {
+        params.append("mode", mode);
+    }
 
-    if  (use_driver) params.append("use_driver", "true");
+    if (period) {
+        params.append("period", period);
+    }
+
+    if (start_date) {
+        params.append("start_date", start_date);
+    }
+
+    if (end_date) {
+        params.append("end_date", end_date);
+    }
+
+    if (use_driver !== undefined) {
+        params.append(
+            "use_driver",
+            String(use_driver)
+        );
+    }
 
     if (params.toString()) {
         url += `?${params.toString()}`;
     }
 
-    const res = await fetch(url);
-    if (!res.ok) {
-        const errortext = await res.text();
-        console.error("BACKEND ERROR:", errortext);
-        throw new Error(`Failed to fetch PnL data: ${errortext}`);
+    const response = await fetch(url);
+
+    if (!response.ok) {
+
+        const errorText = await response.text();
+
+        console.error(
+            "P&L BACKEND ERROR:",
+            errorText
+        );
+
+        throw new Error(
+            `Failed to fetch P&L data: ${errorText}`
+        );
     }
 
-    return res.json();
+    return response.json();
 };
 
-export const getBalanceSheet = async ({period} = {})=> {
-    let url = `${BASE_URL}/balance-sheet`;
-    if (period) url += `?period=${period}`;
-    const res = await fetch(url);
-    return res.json();
-};
+/* =========================================================
+   FIXED ASSETS
+========================================================= */
 
-export const getCashFlow = async({period} = {}) => {
-    let url = `${BASE_URL}/cashflow`;
-    if (period) url += `?period=${period}`;
-    const res = await fetch(url);
-    return res.json();
-}
+export const getFixedAssets = async () => {
+    const response = await fetch(`${BASE_URL}/fixed-assets`);
 
-export const applyDepreciation = async(asset_name,amount) => {
-    const res = await fetch (`${BASE_URL}/depreciation`,{
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({asset_name, amount}),
-    });
-    return res.json();
-};
-
-export const getEbitda = async() => {
-    const res = await fetch (`${BASE_URL}/ebitda`);
-    return res.json();
-}
-
-export const learnRule = async (data)=> {
-    await fetch (`${BASE_URL}/learn`, {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(data), 
-    });
-};
-
-export const createDriver = async(data) => {
-    const res = await fetch (`${BASE_URL}/drivers`, {
-        method: "POST",
-        headers: {
-             "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-    });
-
-    if(!res.ok) {
-        const err = await res.text();
-        console.error("Driver API Error:", err);
-        throw new Error(err);
+    if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || "Failed to fetch fixed assets");
     }
-    return res.json();
-}
 
-export const getPnlPeriodic = async (period = "monthly")=> {
-    const res = await fetch( `http://localhost:8000/pnl?period=${period}`);
-    return res.json();
+    return response.json();
 };
 
-export const getKpi = async() =>{
-    const res = await fetch (`${BASE_URL}/kpi`);
-    return res.json();
-}
 
-export const runDcf = async(payload)=> {
-    const res = await fetch("http://127.0.0.1:8000/dcf", {
+export const createFixedAsset = async (payload) => {
+    const response = await fetch(`${BASE_URL}/fixed-assets`, {
         method: "POST",
         headers: {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "Accept": "application/json",
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
     });
 
-    const data = await res.json();
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(
+            data?.detail ||
+            data?.message ||
+            "Failed to create fixed asset"
+        );
+    }
+
     return data;
-}
-
-export const runDcfSensitivity = async (payload) => {
-    const res = await fetch ("http://127.0.0.1:8000/dcf/sensitivity", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload),
-    });
-
-    return res.json();
-}
-
-export const runMonteCarlo = async (payload) => {
-    const res = await fetch ("http://127.0.0.1:8000/dcf/monte-carlo", {
-        method: "POST",
-        headers: {
-            "Content-type": "application/json"
-        },
-        body: JSON.stringify(payload),
-    });
-    return res.json();
-}
-
-export const getTransactions = async ()=>{
-    const res = await fetch(`${BASE_URL}/transactions`);
-    return res.json();
 };
 
-export const deleteTransaction = async(id)=>{
-    const res = await fetch (`${BASE_URL}/transaction/${id}`,{
-        method: "DELETE"
-    });
-    return res.json();
-}
 
-export const getRatios = async() => {
-    const res = await fetch (`${BASE_URL}/ratios`);
-    return res.json();
-}
+/* =========================================================
+   DEPRECIATION SCHEDULE
+========================================================= */
 
-export const getAiInsights = async() => {
-    const res = await fetch (`${BASE_URL}/ai-insights`);
-    return res.json();
-}
+export const getAssetSchedule = async (assetId) => {
+    const response = await fetch(
+        `${BASE_URL}/fixed-assets/${assetId}/depreciation-schedule`
+    );
 
-export const uploadFinancialDocument = async(file) => {
-    const formData = new FormData();
-    formData.append("file", file);
+    if (!response.ok) {
+        const text = await response.text();
+        throw new Error(
+            text || "Failed to fetch depreciation schedule"
+        );
+    }
 
-    const res = await fetch(`${BASE_URL}/ai/upload-financial-doc`, {
-        method: "POST",
-        body: formData,
-    });
-    return res.json();
+    return response.json();
 };
 
-export const runPeerBenchmark = async(payload) => {
 
-    const res = await fetch(`${BASE_URL}/ai/peer-benchmark`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload),
-    });
-    return res.json();
-}
+/* =========================================================
+   POST DEPRECIATION JOURNAL
+========================================================= */
 
-export async function generatePitchDeck(file){
+export const postDepreciationJournal = async (scheduleId) => {
+    const response = await fetch(
+        `${BASE_URL}/depreciation-schedule/${scheduleId}/post`,
+        {
+            method: "POST",
+            headers: {
+                "Accept": "application/json",
+            },
+        }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(
+            data?.detail ||
+            data?.message ||
+            "Failed to post depreciation journal"
+        );
+    }
+
+    return data;
+};
+
+
+
+// =====================================================
+// PERIODIC P&L
+// =====================================================
+
+export const getPnlPeriodic = async (
+    period = "monthly"
+) => {
+
+    const response = await fetch(
+        `${BASE_URL}/pnl?period=${encodeURIComponent(period)}`
+    );
+
+    if (!response.ok) {
+        throw new Error("Failed to fetch periodic P&L");
+    }
+
+    return response.json();
+};
+
+
+// =====================================================
+// BALANCE SHEET
+// =====================================================
+
+export const getBalanceSheet = async ({
+    period,
+} = {}) => {
+
+    let url = `${BASE_URL}/balance-sheet`;
+
+    if (period) {
+        url += `?period=${encodeURIComponent(period)}`;
+    }
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+        const errorText = await response.text();
+
+        throw new Error(
+            `Failed to fetch balance sheet: ${errorText}`
+        );
+    }
+
+    return response.json();
+};
+
+
+// =====================================================
+// CASH FLOW
+// =====================================================
+
+
+
+export const getCashFlow = async ({ period } = {}) => {
+  let url = `${BASE_URL}/cashflow`;
+
+  if (period) {
+    url += `?period=${period}`;
+  }
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Cash Flow API Error:", errorText);
+
+    throw new Error(
+      `Failed to fetch Cash Flow: ${errorText}`
+    );
+  }
+
+  return response.json();
+};
+
+
+// =====================================================
+// FORECAST
+// =====================================================
+
+export const getForecast = async (params = {}) => {
+
+    const query = new URLSearchParams(params).toString();
+
+    const url = query
+        ? `${BASE_URL}/forecast?${query}`
+        : `${BASE_URL}/forecast`;
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+        const errorText = await response.text();
+
+        throw new Error(
+            `Failed to fetch forecast: ${errorText}`
+        );
+    }
+
+    return response.json();
+};
+
+
+// =====================================================
+// DEPRECIATION
+// =====================================================
+
+export const applyDepreciation = async (
+    asset_name,
+    amount
+) => {
+
+    const response = await fetch(
+        `${BASE_URL}/depreciation`,
+        {
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json",
+            },
+
+            body: JSON.stringify({
+                asset_name,
+                amount,
+            }),
+        }
+    );
+
+    if (!response.ok) {
+        const errorText = await response.text();
+
+        throw new Error(
+            `Failed to apply depreciation: ${errorText}`
+        );
+    }
+
+    return response.json();
+};
+
+
+// =====================================================
+// EBITDA
+// =====================================================
+
+export const getEbitda = async () => {
+
+    const response = await fetch(
+        `${BASE_URL}/ebitda`
+    );
+
+    if (!response.ok) {
+        throw new Error("Failed to fetch EBITDA");
+    }
+
+    return response.json();
+};
+
+
+// =====================================================
+// RULE LEARNING
+// =====================================================
+
+export const learnRule = async (data) => {
+
+    const response = await fetch(
+        `${BASE_URL}/learn`,
+        {
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json",
+            },
+
+            body: JSON.stringify(data),
+        }
+    );
+
+    if (!response.ok) {
+        const errorText = await response.text();
+
+        throw new Error(
+            `Failed to learn rule: ${errorText}`
+        );
+    }
+
+    return response.json();
+};
+
+
+// =====================================================
+// DRIVERS
+// =====================================================
+
+export const createDriver = async (data) => {
+
+    const response = await fetch(
+        `${BASE_URL}/drivers`,
+        {
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json",
+            },
+
+            body: JSON.stringify(data),
+        }
+    );
+
+    if (!response.ok) {
+
+        const errorText = await response.text();
+
+        console.error(
+            "Driver API Error:",
+            errorText
+        );
+
+        throw new Error(errorText);
+    }
+
+    return response.json();
+};
+
+
+// =====================================================
+// KPI
+// =====================================================
+
+export const getKpi = async () => {
+
+    const response = await fetch(
+        `${BASE_URL}/kpi`
+    );
+
+    if (!response.ok) {
+        throw new Error("Failed to fetch KPI");
+    }
+
+    return response.json();
+};
+
+
+// =====================================================
+// RATIOS
+// =====================================================
+
+export const getRatios = async () => {
+
+    const response = await fetch(
+        `${BASE_URL}/ratios`
+    );
+
+    if (!response.ok) {
+        throw new Error("Failed to fetch ratios");
+    }
+
+    return response.json();
+};
+
+
+// =====================================================
+// AI INSIGHTS
+// =====================================================
+
+export const getAiInsights = async () => {
+
+    const response = await fetch(
+        `${BASE_URL}/ai-insights`
+    );
+
+    if (!response.ok) {
+        throw new Error("Failed to fetch AI insights");
+    }
+
+    return response.json();
+};
+
+
+// =====================================================
+// AI DOCUMENT ANALYSIS
+// =====================================================
+
+export const uploadFinancialDocument = async (file) => {
+
     const formData = new FormData();
-    formData.append("file", file);
 
-    const response = await fetch(`${BASE_URL}/ai/generate-pitch-deck`, {
-        method: "POST",
-        body: formData
-    });
+    formData.append(
+        "file",
+        file
+    );
+
+    const response = await fetch(
+        `${BASE_URL}/ai/upload-financial-doc`,
+        {
+            method: "POST",
+            body: formData,
+        }
+    );
+
+    if (!response.ok) {
+        const errorText = await response.text();
+
+        throw new Error(
+            `Document upload failed: ${errorText}`
+        );
+    }
+
+    return response.json();
+};
+
+
+// =====================================================
+// PEER BENCHMARK
+// =====================================================
+
+export const runPeerBenchmark = async (payload) => {
+
+    const response = await fetch(
+        `${BASE_URL}/ai/peer-benchmark`,
+        {
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json",
+            },
+
+            body: JSON.stringify(payload),
+        }
+    );
+
+    if (!response.ok) {
+        const errorText = await response.text();
+
+        throw new Error(
+            `Peer benchmark failed: ${errorText}`
+        );
+    }
+
+    return response.json();
+};
+
+
+// =====================================================
+// AI PITCH DECK
+// =====================================================
+
+export async function generatePitchDeck(file) {
+
+    const formData = new FormData();
+
+    formData.append(
+        "file",
+        file
+    );
+
+    const response = await fetch(
+        `${BASE_URL}/ai/generate-pitch-deck`,
+        {
+            method: "POST",
+            body: formData,
+        }
+    );
+
+    if (!response.ok) {
+        const errorText = await response.text();
+
+        throw new Error(
+            `Pitch deck generation failed: ${errorText}`
+        );
+    }
+
     return response.json();
 }
+
+
+// =====================================================
+// DCF
+// =====================================================
+
+export const runDcf = async (payload) => {
+
+    const response = await fetch(
+        `${BASE_URL}/dcf`,
+        {
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json",
+            },
+
+            body: JSON.stringify(payload),
+        }
+    );
+
+    if (!response.ok) {
+        const errorText = await response.text();
+
+        throw new Error(
+            `DCF failed: ${errorText}`
+        );
+    }
+
+    return response.json();
+};
+
+
+// =====================================================
+// DCF SENSITIVITY
+// =====================================================
+
+export const runDcfSensitivity = async (payload) => {
+
+    const response = await fetch(
+        `${BASE_URL}/dcf/sensitivity`,
+        {
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json",
+            },
+
+            body: JSON.stringify(payload),
+        }
+    );
+
+    if (!response.ok) {
+        const errorText = await response.text();
+
+        throw new Error(
+            `DCF sensitivity failed: ${errorText}`
+        );
+    }
+
+    return response.json();
+};
+
+
+// =====================================================
+// MONTE CARLO
+// =====================================================
+
+export const runMonteCarlo = async (payload) => {
+
+    const response = await fetch(
+        `${BASE_URL}/dcf/monte-carlo`,
+        {
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json",
+            },
+
+            body: JSON.stringify(payload),
+        }
+    );
+
+    if (!response.ok) {
+        const errorText = await response.text();
+
+        throw new Error(
+            `Monte Carlo failed: ${errorText}`
+        );
+    }
+
+    return response.json();
+};
+
+
 
 export async function saveProject(payload) {
 

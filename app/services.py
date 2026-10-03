@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
-from .models import Account, JournalEntry, JournalLine, Invoice,Rule, Driver
+from .models import Account, JournalEntry, JournalLine, Invoice,Rule, Driver, AccountingFixedAsset, DepreciationSchedule, Product, Customer, Supplier, StockMovement, ReorderRequest
 from .ai import classify
-from datetime import datetime, timedelta, timezone
-from sqlalchemy import text
+from datetime import datetime, timedelta, timezone, time, date
+from sqlalchemy import text, case, func
 import random
 
 # ============================================================
@@ -36,6 +36,11 @@ ACCOUNT_GROUPS = {
     "Investments": {
         "type": "non_current_assets",
         "normal_balance": "debit"
+    },
+
+    "Accumulated Depreciation": {
+        "type": "contra_asset",
+        "normal_balance": "credit"
     },
 
     # ================= LIABILITIES =================
@@ -251,9 +256,6 @@ def post_journal_entry(
         for line in lines
     )
 
-    # Accounting equation:
-    # Total Debit = Total Credit
-
     if round(total_debit, 2) != round(total_credit, 2):
         raise ValueError(
             f"Unbalanced journal entry. "
@@ -261,54 +263,69 @@ def post_journal_entry(
             f"Credit={total_credit}"
         )
 
-    entry = JournalEntry(
-        description=description,
-        created_at=(
-            entry_date
-            or datetime.now(timezone.utc)
-        )
-    )
+    try:
 
-    db.add(entry)
-
-    # Get ID before creating lines
-    db.flush()
-
-    for line in lines:
-
-        debit = float(line.get("debit", 0))
-        credit = float(line.get("credit", 0))
-
-        if debit < 0 or credit < 0:
-            raise ValueError(
-                "Debit and credit cannot be negative"
+        entry = JournalEntry(
+            description=description,
+            created_at=(
+                entry_date
+                or datetime.now(timezone.utc)
             )
-
-        if debit > 0 and credit > 0:
-            raise ValueError(
-                "One journal line cannot contain "
-                "both debit and credit"
-            )
-
-        if debit == 0 and credit == 0:
-            raise ValueError(
-                "Journal line must contain "
-                "either debit or credit"
-            )
-
-        journal_line = JournalLine(
-            entry_id=entry.id,
-            account_id=line["account_id"],
-            debit=debit,
-            credit=credit
         )
 
-        db.add(journal_line)
+        db.add(entry)
 
-    db.commit()
-    db.refresh(entry)
+        db.flush()
 
-    return entry
+        for line in lines:
+
+            debit = float(line.get("debit", 0))
+            credit = float(line.get("credit", 0))
+
+            if debit < 0 or credit < 0:
+                raise ValueError(
+                    "Debit and credit cannot be negative"
+                )
+
+            if debit > 0 and credit > 0:
+                raise ValueError(
+                    "One journal line cannot contain "
+                    "both debit and credit"
+                )
+
+            if debit == 0 and credit == 0:
+                raise ValueError(
+                    "Journal line must contain "
+                    "either debit or credit"
+                )
+
+            # Verify account exists
+            account = db.query(Account).filter(
+                Account.id == line["account_id"]
+            ).first()
+
+            if not account:
+                raise ValueError(
+                    f"Account {line['account_id']} does not exist"
+                )
+
+            journal_line = JournalLine(
+                entry_id=entry.id,
+                account_id=line["account_id"],
+                debit=debit,
+                credit=credit
+            )
+
+            db.add(journal_line)
+
+        db.commit()
+        db.refresh(entry)
+
+        return entry
+
+    except Exception:
+        db.rollback()
+        raise
 
 def create_transaction(
     db: Session,
@@ -887,6 +904,31 @@ def apply_periodic_report(db: Session, period: str, report_func):
                 "label": f"Q{q} {today.year}",
                 "data": result
             })
+
+    elif period == "half_yearly":
+
+        # First Half
+        start = datetime(today.year, 1, 1)
+        end = datetime(today.year, 6, 30)
+
+        result = report_func(db, start, end)
+
+        results.append({
+            "label": f"H1 {today.year}",
+            "data": result
+        })
+
+        # Second Half
+        start = datetime(today.year, 7, 1)
+        end = datetime(today.year, 12, 31)
+
+        result = report_func(db, start, end)
+
+        results.append({
+            "label": f"H2 {today.year}",
+            "data": result
+        })
+
     elif period == "yearly":
         start = datetime(today.year, 1, 1)
         end = datetime(today.year, 12, 31)
@@ -899,8 +941,455 @@ def apply_periodic_report(db: Session, period: str, report_func):
     return results
 
 
-#Depreciation:
-def apply_depreciation(db: Session, asset_name: str, amount: float):
+# ============================================================
+# FIXED ASSETS & DEPRECIATION ENGINE
+# ============================================================
+
+def calculate_monthly_depreciation(
+    opening_wdv: float,
+    purchase_cost: float,
+    depreciation_method: str,
+    depreciation_rate: float,
+    salvage_value: float = 0
+):
+    """
+    Calculate one month's depreciation.
+
+    SLM:
+        Annual depreciation = Cost × Rate
+        Monthly depreciation = Annual depreciation / 12
+
+    WDV:
+        Monthly rate = Annual rate / 12
+        Depreciation = Opening WDV × Monthly rate
+    """
+
+    method = depreciation_method.strip().upper()
+
+    if method == "SLM":
+
+        monthly_dep = (
+            purchase_cost
+            * (depreciation_rate / 100)
+            / 12
+        )
+
+    elif method == "WDV":
+
+        monthly_rate = (
+            depreciation_rate / 100
+        ) / 12
+
+        monthly_dep = (
+            opening_wdv * monthly_rate
+        )
+
+    else:
+        raise ValueError(
+            "Depreciation method must be SLM or WDV"
+        )
+
+    # Never depreciate below salvage value
+    maximum_depreciation = max(
+        opening_wdv - salvage_value,
+        0
+    )
+
+    monthly_dep = min(
+        monthly_dep,
+        maximum_depreciation
+    )
+
+    return round(max(monthly_dep, 0), 2)
+
+
+def generate_depreciation_schedule(
+    db: Session,
+    asset: AccountingFixedAsset
+):
+    """
+    Generate monthly depreciation schedule
+    from the month after purchase until useful life
+    or until the asset reaches salvage value.
+    """
+
+    # Remove existing unposted schedule
+    db.query(DepreciationSchedule).filter(
+        DepreciationSchedule.asset_id == asset.id
+    ).delete()
+
+    purchase_date = asset.purchase_date
+
+    # Start from the month after purchase
+    year = purchase_date.year
+    month = purchase_date.month + 1
+
+    if month == 13:
+        month = 1
+        year += 1
+
+    opening_wdv = float(asset.purchase_cost)
+
+    # If useful life isn't supplied, derive it
+    if asset.useful_life_months:
+        total_months = asset.useful_life_months
+    else:
+        if asset.depreciation_rate > 0:
+            total_months = int(
+                1200 / asset.depreciation_rate
+            )
+        else:
+            total_months = 0
+
+    for i in range(total_months):
+
+        if opening_wdv <= asset.salvage_value:
+            break
+
+        period = datetime(
+            year,
+            month,
+            1
+        )
+
+        depreciation = calculate_monthly_depreciation(
+            opening_wdv=opening_wdv,
+            purchase_cost=asset.purchase_cost,
+            depreciation_method=asset.depreciation_method,
+            depreciation_rate=asset.depreciation_rate,
+            salvage_value=asset.salvage_value
+        )
+
+        closing_wdv = round(
+            opening_wdv - depreciation,
+            2
+        )
+
+        schedule = DepreciationSchedule(
+            asset_id=asset.id,
+            period=period,
+            opening_wdv=round(opening_wdv, 2),
+            depreciation_amount=depreciation,
+            closing_wdv=closing_wdv,
+            status="due"
+        )
+
+        db.add(schedule)
+
+        opening_wdv = closing_wdv
+
+        month += 1
+
+        if month == 13:
+            month = 1
+            year += 1
+
+    db.commit()
+
+    return (
+        db.query(DepreciationSchedule)
+        .filter(
+            DepreciationSchedule.asset_id == asset.id
+        )
+        .order_by(
+            DepreciationSchedule.period
+        )
+        .all()
+    )
+
+
+def create_fixed_asset(
+    db: Session,
+    data
+):
+    """
+    Create fixed asset and automatically generate
+    its depreciation schedule.
+    """
+
+    existing = (
+        db.query(AccountingFixedAsset)
+        .filter(
+            AccountingFixedAsset.asset_code == data.asset_code
+        )
+        .first()
+    )
+
+    if existing:
+        raise ValueError(
+            f"Asset code {data.asset_code} already exists"
+        )
+
+    if data.purchase_cost <= 0:
+        raise ValueError(
+            "Purchase cost must be greater than zero"
+        )
+
+    if data.depreciation_rate <= 0:
+        raise ValueError(
+            "Depreciation rate must be greater than zero"
+        )
+
+    method = data.depreciation_method.strip().upper()
+
+    if method not in ["SLM", "WDV"]:
+        raise ValueError(
+            "Depreciation method must be SLM or WDV"
+        )
+
+    purchase_date = datetime.fromisoformat(
+        data.purchase_date
+    )
+
+    asset = AccountingFixedAsset(
+        asset_code=data.asset_code.strip(),
+        asset_name=data.asset_name.strip(),
+        purchase_cost=data.purchase_cost,
+        purchase_date=purchase_date,
+        depreciation_method=method,
+        depreciation_rate=data.depreciation_rate,
+        useful_life_months=data.useful_life_months,
+        salvage_value=data.salvage_value or 0,
+        status="active"
+    )
+
+    db.add(asset)
+    db.commit()
+    db.refresh(asset)
+
+    # Create corresponding fixed asset account
+    get_on_create_account(
+        db,
+        asset.asset_name,
+        "Fixed Assets"
+    )
+
+    # Automatically generate schedule
+    generate_depreciation_schedule(
+        db,
+        asset
+    )
+
+    return asset
+
+
+def get_fixed_assets(db: Session):
+
+    assets = (
+        db.query(AccountingFixedAsset)
+        .order_by(AccountingFixedAsset.purchase_date.desc())
+        .all()
+    )
+
+    result = []
+
+    for asset in assets:
+
+        schedule = (
+            db.query(DepreciationSchedule)
+            .filter(
+                DepreciationSchedule.asset_id == asset.id
+            )
+            .order_by(
+                DepreciationSchedule.period.desc()
+            )
+            .first()
+        )
+
+        book_value = (
+            schedule.closing_wdv
+            if schedule
+            else asset.purchase_cost
+        )
+
+        result.append({
+            "id": asset.id,
+            "asset_code": asset.asset_code,
+            "asset_name": asset.asset_name,
+            "purchase_cost": asset.purchase_cost,
+            "purchase_date": asset.purchase_date.isoformat(),
+            "depreciation_method": asset.depreciation_method,
+            "depreciation_rate": asset.depreciation_rate,
+            "useful_life_months": asset.useful_life_months,
+            "salvage_value": asset.salvage_value,
+            "status": asset.status,
+            "book_value_today": book_value
+        })
+
+    return result
+
+
+def get_asset_schedule(
+    db: Session,
+    asset_id: int
+):
+
+    asset = (
+        db.query(AccountingFixedAsset)
+        .filter(AccountingFixedAsset.id == asset_id)
+        .first()
+    )
+
+    if not asset:
+        raise ValueError(
+            "Fixed asset not found"
+        )
+
+    schedule = (
+        db.query(DepreciationSchedule)
+        .filter(
+            DepreciationSchedule.asset_id == asset_id
+        )
+        .order_by(
+            DepreciationSchedule.period
+        )
+        .all()
+    )
+
+    return {
+        "asset": {
+            "id": asset.id,
+            "asset_code": asset.asset_code,
+            "asset_name": asset.asset_name,
+            "purchase_cost": asset.purchase_cost,
+            "purchase_date": asset.purchase_date.isoformat(),
+            "depreciation_method": asset.depreciation_method,
+            "depreciation_rate": asset.depreciation_rate,
+            "useful_life_months": asset.useful_life_months,
+            "salvage_value": asset.salvage_value,
+        },
+        "schedule": [
+            {
+                "id": row.id,
+                "period": row.period.strftime("%b %y"),
+                "opening_wdv": row.opening_wdv,
+                "depreciation_amount": row.depreciation_amount,
+                "closing_wdv": row.closing_wdv,
+                "status": row.status,
+                "journal_entry_id": row.journal_entry_id,
+                "posted_at": (
+                    row.posted_at.isoformat()
+                    if row.posted_at
+                    else None
+                )
+            }
+            for row in schedule
+        ]
+    }
+
+
+def post_depreciation_journal(
+    db: Session,
+    schedule_id: int
+):
+    """
+    Post one depreciation schedule row
+    into the central journal engine.
+    """
+
+    schedule = (
+        db.query(DepreciationSchedule)
+        .filter(
+            DepreciationSchedule.id == schedule_id
+        )
+        .first()
+    )
+
+    if not schedule:
+        raise ValueError(
+            "Depreciation schedule not found"
+        )
+
+    if schedule.status == "posted":
+        raise ValueError(
+            "This depreciation entry is already posted"
+        )
+
+    asset = (
+        db.query(AccountingFixedAsset)
+        .filter(
+            AccountingFixedAsset.id == schedule.asset_id
+        )
+        .first()
+    )
+
+    if not asset:
+        raise ValueError(
+            "Fixed asset not found"
+        )
+
+    # --------------------------------------------------------
+    # Create depreciation expense account
+    # --------------------------------------------------------
+
+    depreciation_expense = get_on_create_account(
+        db,
+        "Depreciation Expense",
+        "Indirect Expenses"
+    )
+
+    # --------------------------------------------------------
+    # Create accumulated depreciation account
+    # --------------------------------------------------------
+
+    accumulated_dep = get_on_create_account(
+        db,
+        f"Accumulated Depreciation - {asset.asset_name}",
+        "Accumulated Depreciation"
+    )
+
+    # --------------------------------------------------------
+    # Journal
+    #
+    # Dr Depreciation Expense
+    #     Cr Accumulated Depreciation
+    # --------------------------------------------------------
+
+    lines = [
+        {
+            "account_id": depreciation_expense.id,
+            "debit": schedule.depreciation_amount,
+            "credit": 0
+        },
+        {
+            "account_id": accumulated_dep.id,
+            "debit": 0,
+            "credit": schedule.depreciation_amount
+        }
+    ]
+
+    entry = post_journal_entry(
+        db=db,
+        description=(
+            f"Depreciation - "
+            f"{asset.asset_name} - "
+            f"{schedule.period.strftime('%b %Y')}"
+        ),
+        lines=lines,
+        entry_date=schedule.period
+    )
+
+    # --------------------------------------------------------
+    # Mark schedule as posted
+    # --------------------------------------------------------
+
+    schedule.status = "posted"
+    schedule.journal_entry_id = entry.id
+    schedule.posted_at = datetime.now(timezone.utc)
+
+    db.commit()
+    db.refresh(schedule)
+
+    return {
+        "message": "Depreciation journal posted successfully",
+        "schedule_id": schedule.id,
+        "journal_entry_id": entry.id,
+        "asset": asset.asset_name,
+        "period": schedule.period.strftime("%b %Y"),
+        "depreciation": schedule.depreciation_amount
+    }
+
+"""def apply_depreciation(db: Session, asset_name: str, amount: float):
     entry = JournalEntry(description = f"Depreciation for {asset_name}")
     db.add(entry)
     db.commit()
@@ -915,7 +1404,2196 @@ def apply_depreciation(db: Session, asset_name: str, amount: float):
         JournalLine(entry_id = entry.id, account_id = accumulated_dep.id, credit = amount),
     ])
     db.commit()
-    return {"msg": f"Depreciation applied for {asset_name}"} 
+    return {"msg": f"Depreciation applied for {asset_name}"} """
+
+
+def create_product(db: Session, data):
+    """
+    Create a new product / stock item.
+
+    This function only creates the product master.
+    It does NOT create inventory movement
+    and does NOT create a journal entry.
+    """
+
+    sku = data.sku.strip()
+    name = data.name.strip()
+
+    if not sku:
+        raise ValueError("SKU is required")
+
+    if not name:
+        raise ValueError("Product name is required")
+
+    existing = (
+        db.query(Product)
+        .filter(Product.sku == sku)
+        .first()
+    )
+
+    if existing:
+        raise ValueError(
+            f"Product SKU {sku} already exists"
+        )
+
+    costing_method = (
+        data.costing_method
+        .strip()
+        .upper()
+    )
+
+    allowed_costing_methods = {
+        "WEIGHTED_AVERAGE",
+        "FIFO"
+    }
+
+    if costing_method not in allowed_costing_methods:
+        raise ValueError(
+            "Costing method must be "
+            "WEIGHTED_AVERAGE or FIFO"
+        )
+
+    if data.tax_rate < 0 or data.tax_rate > 100:
+        raise ValueError(
+            "Tax rate must be between 0 and 100"
+        )
+
+    # -----------------------------------------
+    # Validate accounting accounts
+    # -----------------------------------------
+
+    account_ids = [
+        data.inventory_account_id,
+        data.purchase_account_id,
+        data.sales_account_id
+    ]
+
+    for account_id in account_ids:
+
+        if account_id is None:
+            continue
+
+        account = (
+            db.query(Account)
+            .filter(Account.id == account_id)
+            .first()
+        )
+
+        if not account:
+            raise ValueError(
+                f"Account {account_id} does not exist"
+            )
+
+    # -----------------------------------------
+    # Create Product
+    # -----------------------------------------
+
+    product = Product(
+        sku=sku,
+        name=name,
+        description=(
+            data.description.strip()
+            if data.description
+            else None
+        ),
+        category=(
+            data.category.strip()
+            if data.category
+            else None
+        ),
+        unit=data.unit.strip(),
+        purchase_price=data.purchase_price,
+        selling_price=data.selling_price,
+        tax_rate=data.tax_rate,
+
+        inventory_account_id=(
+            data.inventory_account_id
+        ),
+
+        purchase_account_id=(
+            data.purchase_account_id
+        ),
+
+        sales_account_id=(
+            data.sales_account_id
+        ),
+
+        costing_method=costing_method,
+
+        reorder_level=data.reorder_level,
+
+        is_active=True
+    )
+
+    db.add(product)
+    db.commit()
+    db.refresh(product)
+
+    return product
+
+def get_products(
+    db: Session,
+    search: str = None,
+    category: str = None,
+    active_only: bool = True
+):
+    """
+    Return products from the Product Master.
+    """
+
+    query = (
+        db.query(Product)
+        .order_by(Product.name.asc())
+    )
+
+    if active_only:
+        query = query.filter(
+            Product.is_active == True
+        )
+
+    if search:
+        search_term = f"%{search.strip()}%"
+
+        query = query.filter(
+            (Product.name.ilike(search_term))
+            |
+            (Product.sku.ilike(search_term))
+        )
+
+    if category:
+        query = query.filter(
+            Product.category == category
+        )
+
+    products = query.all()
+
+    result = []
+
+    for product in products:
+
+        result.append({
+            "id": product.id,
+            "sku": product.sku,
+            "name": product.name,
+            "description": product.description,
+            "category": product.category,
+            "unit": product.unit,
+            "purchase_price": product.purchase_price,
+            "selling_price": product.selling_price,
+            "tax_rate": product.tax_rate,
+
+            "inventory_account_id":
+                product.inventory_account_id,
+
+            "purchase_account_id":
+                product.purchase_account_id,
+
+            "sales_account_id":
+                product.sales_account_id,
+
+            "inventory_account":
+                product.inventory_account.name
+                if product.inventory_account
+                else None,
+
+            "purchase_account":
+                product.purchase_account.name
+                if product.purchase_account
+                else None,
+
+            "sales_account":
+                product.sales_account.name
+                if product.sales_account
+                else None,
+
+            "costing_method":
+                product.costing_method,
+
+            "reorder_level":
+                product.reorder_level,
+
+            "is_active":
+                product.is_active,
+
+            "created_at":
+                product.created_at.isoformat()
+                if product.created_at
+                else None
+        })
+
+    return result
+
+def get_product(
+    db: Session,
+    product_id: int
+):
+    product = (
+        db.query(Product)
+        .filter(Product.id == product_id)
+        .first()
+    )
+
+    if not product:
+        raise ValueError(
+            "Product not found"
+        )
+
+    return {
+        "id": product.id,
+        "sku": product.sku,
+        "name": product.name,
+        "description": product.description,
+        "category": product.category,
+        "unit": product.unit,
+
+        "purchase_price":
+            product.purchase_price,
+
+        "selling_price":
+            product.selling_price,
+
+        "tax_rate":
+            product.tax_rate,
+
+        "inventory_account_id":
+            product.inventory_account_id,
+
+        "purchase_account_id":
+            product.purchase_account_id,
+
+        "sales_account_id":
+            product.sales_account_id,
+
+        "inventory_account":
+            product.inventory_account.name
+            if product.inventory_account
+            else None,
+
+        "purchase_account":
+            product.purchase_account.name
+            if product.purchase_account
+            else None,
+
+        "sales_account":
+            product.sales_account.name
+            if product.sales_account
+            else None,
+
+        "costing_method":
+            product.costing_method,
+
+        "reorder_level":
+            product.reorder_level,
+
+        "is_active":
+            product.is_active,
+
+        "created_at":
+            product.created_at.isoformat()
+            if product.created_at
+            else None
+    }
+
+def update_product(
+    db: Session,
+    product_id: int,
+    data
+):
+
+    product = (
+        db.query(Product)
+        .filter(Product.id == product_id)
+        .first()
+    )
+
+    if not product:
+        raise ValueError(
+            "Product not found"
+        )
+
+    # -----------------------------------------
+    # Validate accounts if supplied
+    # -----------------------------------------
+
+    account_ids = [
+        data.inventory_account_id,
+        data.purchase_account_id,
+        data.sales_account_id
+    ]
+
+    for account_id in account_ids:
+
+        if account_id is None:
+            continue
+
+        account = (
+            db.query(Account)
+            .filter(Account.id == account_id)
+            .first()
+        )
+
+        if not account:
+            raise ValueError(
+                f"Account {account_id} does not exist"
+            )
+
+    # -----------------------------------------
+    # Validate costing method
+    # -----------------------------------------
+
+    if data.costing_method:
+
+        costing_method = (
+            data.costing_method
+            .strip()
+            .upper()
+        )
+
+        if costing_method not in {
+            "WEIGHTED_AVERAGE",
+            "FIFO"
+        }:
+            raise ValueError(
+                "Costing method must be "
+                "WEIGHTED_AVERAGE or FIFO"
+            )
+
+        product.costing_method = costing_method
+
+    # -----------------------------------------
+    # Update fields
+    # -----------------------------------------
+
+    if data.name is not None:
+        product.name = data.name.strip()
+
+    if data.description is not None:
+        product.description = (
+            data.description.strip()
+        )
+
+    if data.category is not None:
+        product.category = (
+            data.category.strip()
+        )
+
+    if data.unit is not None:
+        product.unit = data.unit.strip()
+
+    if data.purchase_price is not None:
+        product.purchase_price = (
+            data.purchase_price
+        )
+
+    if data.selling_price is not None:
+        product.selling_price = (
+            data.selling_price
+        )
+
+    if data.tax_rate is not None:
+        product.tax_rate = (
+            data.tax_rate
+        )
+
+    if data.inventory_account_id is not None:
+        product.inventory_account_id = (
+            data.inventory_account_id
+        )
+
+    if data.purchase_account_id is not None:
+        product.purchase_account_id = (
+            data.purchase_account_id
+        )
+
+    if data.sales_account_id is not None:
+        product.sales_account_id = (
+            data.sales_account_id
+        )
+
+    if data.reorder_level is not None:
+        product.reorder_level = (
+            data.reorder_level
+        )
+
+    if data.is_active is not None:
+        product.is_active = (
+            data.is_active
+        )
+
+    product.updated_at = (
+        datetime.now(timezone.utc)
+    )
+
+    db.commit()
+    db.refresh(product)
+
+    return product
+
+def deactivate_product(
+    db: Session,
+    product_id: int
+):
+
+    product = (
+        db.query(Product)
+        .filter(Product.id == product_id)
+        .first()
+    )
+
+    if not product:
+        raise ValueError(
+            "Product not found"
+        )
+
+    product.is_active = False
+
+    db.commit()
+    db.refresh(product)
+
+    return {
+        "message":
+            "Product deactivated successfully",
+        "product_id":
+            product.id
+    }
+
+def create_customer(db: Session, data):
+    customer_code = data.customer_code.strip()
+    name = data.name.strip()
+
+    if not customer_code:
+        raise ValueError("Customer code is required")
+
+    if not name:
+        raise ValueError("Customer name is required")
+
+    existing = (
+        db.query(Customer)
+        .filter(Customer.customer_code == customer_code)
+        .first()
+    )
+
+    if existing:
+        raise ValueError(
+            f"Customer code {customer_code} already exists"
+        )
+
+    balance_type = data.opening_balance_type.strip().upper()
+
+    if balance_type not in {"DEBIT", "CREDIT"}:
+        raise ValueError(
+            "Opening balance type must be DEBIT or CREDIT"
+        )
+
+    customer = Customer(
+        customer_code=customer_code,
+        name=name,
+        contact_person=(
+            data.contact_person.strip()
+            if data.contact_person
+            else None
+        ),
+        phone=data.phone.strip() if data.phone else None,
+        email=data.email.strip() if data.email else None,
+        billing_address=(
+            data.billing_address.strip()
+            if data.billing_address
+            else None
+        ),
+        shipping_address=(
+            data.shipping_address.strip()
+            if data.shipping_address
+            else None
+        ),
+        gstin=data.gstin.strip() if data.gstin else None,
+        state=data.state.strip() if data.state else None,
+        state_code=(
+            data.state_code.strip()
+            if data.state_code
+            else None
+        ),
+        pan=data.pan.strip() if data.pan else None,
+        payment_terms=data.payment_terms,
+        credit_limit=data.credit_limit,
+        opening_balance=data.opening_balance,
+        opening_balance_type=balance_type,
+        is_active=True
+    )
+
+    db.add(customer)
+    db.commit()
+    db.refresh(customer)
+
+    return customer
+
+def get_customers(
+    db: Session,
+    search: str = None,
+    active_only: bool = True
+):
+    query = (
+        db.query(Customer)
+        .order_by(Customer.name.asc())
+    )
+
+    if active_only:
+        query = query.filter(
+            Customer.is_active == True
+        )
+
+    if search:
+        search_term = f"%{search.strip()}%"
+
+        query = query.filter(
+            (Customer.name.ilike(search_term))
+            |
+            (Customer.customer_code.ilike(search_term))
+            |
+            (Customer.phone.ilike(search_term))
+            |
+            (Customer.gstin.ilike(search_term))
+        )
+
+    customers = query.all()
+
+    return [
+        {
+            "id": customer.id,
+            "customer_code": customer.customer_code,
+            "name": customer.name,
+            "contact_person": customer.contact_person,
+            "phone": customer.phone,
+            "email": customer.email,
+            "billing_address": customer.billing_address,
+            "shipping_address": customer.shipping_address,
+            "gstin": customer.gstin,
+            "state": customer.state,
+            "state_code": customer.state_code,
+            "pan": customer.pan,
+            "payment_terms": customer.payment_terms,
+            "credit_limit": customer.credit_limit,
+            "opening_balance": customer.opening_balance,
+            "opening_balance_type": customer.opening_balance_type,
+            "is_active": customer.is_active,
+            "created_at": (
+                customer.created_at.isoformat()
+                if customer.created_at
+                else None
+            )
+        }
+        for customer in customers
+    ]
+
+def get_customer(db: Session, customer_id: int):
+    customer = (
+        db.query(Customer)
+        .filter(Customer.id == customer_id)
+        .first()
+    )
+
+    if not customer:
+        raise ValueError("Customer not found")
+
+    return {
+        "id": customer.id,
+        "customer_code": customer.customer_code,
+        "name": customer.name,
+        "contact_person": customer.contact_person,
+        "phone": customer.phone,
+        "email": customer.email,
+        "billing_address": customer.billing_address,
+        "shipping_address": customer.shipping_address,
+        "gstin": customer.gstin,
+        "state": customer.state,
+        "state_code": customer.state_code,
+        "pan": customer.pan,
+        "payment_terms": customer.payment_terms,
+        "credit_limit": customer.credit_limit,
+        "opening_balance": customer.opening_balance,
+        "opening_balance_type": customer.opening_balance_type,
+        "is_active": customer.is_active,
+        "created_at": (
+            customer.created_at.isoformat()
+            if customer.created_at
+            else None
+        )
+    }
+
+def update_customer(
+    db: Session,
+    customer_id: int,
+    data
+):
+    customer = (
+        db.query(Customer)
+        .filter(Customer.id == customer_id)
+        .first()
+    )
+
+    if not customer:
+        raise ValueError("Customer not found")
+
+    if data.name is not None:
+        name = data.name.strip()
+
+        if not name:
+            raise ValueError(
+                "Customer name cannot be empty"
+            )
+
+        customer.name = name
+
+    if data.contact_person is not None:
+        customer.contact_person = (
+            data.contact_person.strip()
+        )
+
+    if data.phone is not None:
+        customer.phone = data.phone.strip()
+
+    if data.email is not None:
+        customer.email = data.email.strip()
+
+    if data.billing_address is not None:
+        customer.billing_address = (
+            data.billing_address.strip()
+        )
+
+    if data.shipping_address is not None:
+        customer.shipping_address = (
+            data.shipping_address.strip()
+        )
+
+    if data.gstin is not None:
+        customer.gstin = data.gstin.strip()
+
+    if data.state is not None:
+        customer.state = data.state.strip()
+
+    if data.state_code is not None:
+        customer.state_code = data.state_code.strip()
+
+    if data.pan is not None:
+        customer.pan = data.pan.strip()
+
+    if data.payment_terms is not None:
+        customer.payment_terms = data.payment_terms
+
+    if data.credit_limit is not None:
+        customer.credit_limit = data.credit_limit
+
+    if data.opening_balance is not None:
+        customer.opening_balance = data.opening_balance
+
+    if data.opening_balance_type is not None:
+        balance_type = (
+            data.opening_balance_type.strip().upper()
+        )
+
+        if balance_type not in {"DEBIT", "CREDIT"}:
+            raise ValueError(
+                "Opening balance type must be DEBIT or CREDIT"
+            )
+
+        customer.opening_balance_type = balance_type
+
+    if data.is_active is not None:
+        customer.is_active = data.is_active
+
+    customer.updated_at = datetime.now(timezone.utc)
+
+    db.commit()
+    db.refresh(customer)
+
+    return customer
+
+def deactivate_customer(
+    db: Session,
+    customer_id: int
+):
+    customer = (
+        db.query(Customer)
+        .filter(Customer.id == customer_id)
+        .first()
+    )
+
+    if not customer:
+        raise ValueError("Customer not found")
+
+    customer.is_active = False
+
+    db.commit()
+    db.refresh(customer)
+
+    return {
+        "message": "Customer deactivated successfully",
+        "customer_id": customer.id
+    }
+
+def create_supplier(db: Session, data):
+    supplier_code = data.supplier_code.strip()
+    name = data.name.strip()
+
+    if not supplier_code:
+        raise ValueError("Supplier code is required")
+
+    if not name:
+        raise ValueError("Supplier name is required")
+
+    existing = (
+        db.query(Supplier)
+        .filter(
+            Supplier.supplier_code == supplier_code
+        )
+        .first()
+    )
+
+    if existing:
+        raise ValueError(
+            f"Supplier code {supplier_code} already exists"
+        )
+
+    balance_type = data.opening_balance_type.strip().upper()
+
+    if balance_type not in {"DEBIT", "CREDIT"}:
+        raise ValueError(
+            "Opening balance type must be DEBIT or CREDIT"
+        )
+
+    supplier = Supplier(
+        supplier_code=supplier_code,
+        name=name,
+        contact_person=(
+            data.contact_person.strip()
+            if data.contact_person
+            else None
+        ),
+        phone=data.phone.strip() if data.phone else None,
+        email=data.email.strip() if data.email else None,
+        address=(
+            data.address.strip()
+            if data.address
+            else None
+        ),
+        gstin=data.gstin.strip() if data.gstin else None,
+        state=data.state.strip() if data.state else None,
+        state_code=(
+            data.state_code.strip()
+            if data.state_code
+            else None
+        ),
+        pan=data.pan.strip() if data.pan else None,
+        payment_terms=data.payment_terms,
+        credit_limit=data.credit_limit,
+        opening_balance=data.opening_balance,
+        opening_balance_type=balance_type,
+        is_active=True
+    )
+
+    db.add(supplier)
+    db.commit()
+    db.refresh(supplier)
+
+    return supplier
+
+def get_suppliers(
+    db: Session,
+    search: str = None,
+    active_only: bool = True
+):
+    query = (
+        db.query(Supplier)
+        .order_by(Supplier.name.asc())
+    )
+
+    if active_only:
+        query = query.filter(
+            Supplier.is_active == True
+        )
+
+    if search:
+        search_term = f"%{search.strip()}%"
+
+        query = query.filter(
+            (Supplier.name.ilike(search_term))
+            |
+            (Supplier.supplier_code.ilike(search_term))
+            |
+            (Supplier.phone.ilike(search_term))
+            |
+            (Supplier.gstin.ilike(search_term))
+        )
+
+    suppliers = query.all()
+
+    return [
+        {
+            "id": supplier.id,
+            "supplier_code": supplier.supplier_code,
+            "name": supplier.name,
+            "contact_person": supplier.contact_person,
+            "phone": supplier.phone,
+            "email": supplier.email,
+            "address": supplier.address,
+            "gstin": supplier.gstin,
+            "state": supplier.state,
+            "state_code": supplier.state_code,
+            "pan": supplier.pan,
+            "payment_terms": supplier.payment_terms,
+            "credit_limit": supplier.credit_limit,
+            "opening_balance": supplier.opening_balance,
+            "opening_balance_type": supplier.opening_balance_type,
+            "is_active": supplier.is_active,
+            "created_at": (
+                supplier.created_at.isoformat()
+                if supplier.created_at
+                else None
+            )
+        }
+        for supplier in suppliers
+    ]
+
+def get_supplier(db: Session, supplier_id: int):
+    supplier = (
+        db.query(Supplier)
+        .filter(Supplier.id == supplier_id)
+        .first()
+    )
+
+    if not supplier:
+        raise ValueError("Supplier not found")
+
+    return {
+        "id": supplier.id,
+        "supplier_code": supplier.supplier_code,
+        "name": supplier.name,
+        "contact_person": supplier.contact_person,
+        "phone": supplier.phone,
+        "email": supplier.email,
+        "address": supplier.address,
+        "gstin": supplier.gstin,
+        "state": supplier.state,
+        "state_code": supplier.state_code,
+        "pan": supplier.pan,
+        "payment_terms": supplier.payment_terms,
+        "credit_limit": supplier.credit_limit,
+        "opening_balance": supplier.opening_balance,
+        "opening_balance_type": supplier.opening_balance_type,
+        "is_active": supplier.is_active,
+        "created_at": (
+            supplier.created_at.isoformat()
+            if supplier.created_at
+            else None
+        )
+    }
+
+def update_supplier(
+    db: Session,
+    supplier_id: int,
+    data
+):
+    supplier = (
+        db.query(Supplier)
+        .filter(Supplier.id == supplier_id)
+        .first()
+    )
+
+    if not supplier:
+        raise ValueError("Supplier not found")
+
+    if data.name is not None:
+        name = data.name.strip()
+
+        if not name:
+            raise ValueError(
+                "Supplier name cannot be empty"
+            )
+
+        supplier.name = name
+
+    if data.contact_person is not None:
+        supplier.contact_person = (
+            data.contact_person.strip()
+        )
+
+    if data.phone is not None:
+        supplier.phone = data.phone.strip()
+
+    if data.email is not None:
+        supplier.email = data.email.strip()
+
+    if data.address is not None:
+        supplier.address = data.address.strip()
+
+    if data.gstin is not None:
+        supplier.gstin = data.gstin.strip()
+
+    if data.state is not None:
+        supplier.state = data.state.strip()
+
+    if data.state_code is not None:
+        supplier.state_code = data.state_code.strip()
+
+    if data.pan is not None:
+        supplier.pan = data.pan.strip()
+
+    if data.payment_terms is not None:
+        supplier.payment_terms = data.payment_terms
+
+    if data.credit_limit is not None:
+        supplier.credit_limit = data.credit_limit
+
+    if data.opening_balance is not None:
+        supplier.opening_balance = data.opening_balance
+
+    if data.opening_balance_type is not None:
+        balance_type = (
+            data.opening_balance_type.strip().upper()
+        )
+
+        if balance_type not in {"DEBIT", "CREDIT"}:
+            raise ValueError(
+                "Opening balance type must be DEBIT or CREDIT"
+            )
+
+        supplier.opening_balance_type = balance_type
+
+    if data.is_active is not None:
+        supplier.is_active = data.is_active
+
+    supplier.updated_at = datetime.now(timezone.utc)
+
+    db.commit()
+    db.refresh(supplier)
+
+    return supplier
+
+def deactivate_supplier(
+    db: Session,
+    supplier_id: int
+):
+    supplier = (
+        db.query(Supplier)
+        .filter(Supplier.id == supplier_id)
+        .first()
+    )
+
+    if not supplier:
+        raise ValueError("Supplier not found")
+
+    supplier.is_active = False
+
+    db.commit()
+    db.refresh(supplier)
+
+    return {
+        "message": "Supplier deactivated successfully",
+        "supplier_id": supplier.id
+    }
+
+# ============================================================
+# INVENTORY / STOCK SERVICES
+# ============================================================
+
+ALLOWED_STOCK_MOVEMENT_TYPES = {
+    "OPENING",
+    "PURCHASE",
+    "SALE",
+    "PURCHASE_RETURN",
+    "SALES_RETURN",
+    "ADJUSTMENT_IN",
+    "ADJUSTMENT_OUT"
+}
+
+def create_stock_movement(
+    db: Session,
+    data
+):
+    """
+    Create a stock movement.
+
+    Positive stock movement:
+        OPENING
+        PURCHASE
+        SALES_RETURN
+        ADJUSTMENT_IN
+
+    Negative stock movement:
+        SALE
+        PURCHASE_RETURN
+        ADJUSTMENT_OUT
+    """
+
+    product = (
+        db.query(Product)
+        .filter(Product.id == data.product_id)
+        .first()
+    )
+
+    if not product:
+        raise ValueError(
+            f"Product {data.product_id} does not exist"
+        )
+
+    movement_type = (
+        data.movement_type
+        .strip()
+        .upper()
+    )
+
+    if movement_type not in ALLOWED_STOCK_MOVEMENT_TYPES:
+        raise ValueError(
+            "Invalid stock movement type. "
+            "Allowed types: "
+            + ", ".join(
+                sorted(ALLOWED_STOCK_MOVEMENT_TYPES)
+            )
+        )
+
+    if data.quantity <= 0:
+        raise ValueError(
+            "Quantity must be greater than zero"
+        )
+
+    if data.unit_cost < 0:
+        raise ValueError(
+            "Unit cost cannot be negative"
+        )
+
+    movement = StockMovement(
+        product_id=data.product_id,
+
+        movement_type=movement_type,
+
+        quantity=data.quantity,
+
+        unit_cost=data.unit_cost,
+
+        reference_type=(
+            data.reference_type.strip()
+            if data.reference_type
+            else None
+        ),
+
+        reference_id=data.reference_id,
+
+        movement_date=(
+            data.movement_date
+            if data.movement_date
+            else datetime.now(timezone.utc)
+        ),
+
+        notes=(
+            data.notes.strip()
+            if data.notes
+            else None
+        )
+    )
+
+    db.add(movement)
+
+    db.commit()
+
+    db.refresh(movement)
+
+    return movement
+
+def get_product_stock(
+    db: Session,
+    product_id: int
+):
+    """
+    Calculate current stock quantity
+    from all stock movements.
+    """
+
+    product = (
+        db.query(Product)
+        .filter(Product.id == product_id)
+        .first()
+    )
+
+    if not product:
+        raise ValueError(
+            f"Product {product_id} does not exist"
+        )
+
+    movements = (
+        db.query(StockMovement)
+        .filter(
+            StockMovement.product_id == product_id
+        )
+        .order_by(
+            StockMovement.movement_date,
+            StockMovement.id
+        )
+        .all()
+    )
+
+    stock_quantity = 0
+
+    for movement in movements:
+
+        if movement.movement_type in {
+            "OPENING",
+            "PURCHASE",
+            "SALES_RETURN",
+            "ADJUSTMENT_IN"
+        }:
+
+            stock_quantity += movement.quantity
+
+        elif movement.movement_type in {
+            "SALE",
+            "PURCHASE_RETURN",
+            "ADJUSTMENT_OUT"
+        }:
+
+            stock_quantity -= movement.quantity
+
+    return {
+        "product_id": product.id,
+        "sku": product.sku,
+        "product_name": product.name,
+        "unit": product.unit,
+        "stock_quantity": round(
+            stock_quantity,
+            4
+        ),
+        "reorder_level": product.reorder_level,
+        "is_low_stock": (
+            stock_quantity <= product.reorder_level
+        )
+    }
+
+def get_stock_ledger(
+    db: Session,
+    product_id: int
+):
+    """
+    Return complete stock movement history
+    with running quantity.
+    """
+
+    product = (
+        db.query(Product)
+        .filter(Product.id == product_id)
+        .first()
+    )
+
+    if not product:
+        raise ValueError(
+            f"Product {product_id} does not exist"
+        )
+
+    movements = (
+        db.query(StockMovement)
+        .filter(
+            StockMovement.product_id == product_id
+        )
+        .order_by(
+            StockMovement.movement_date,
+            StockMovement.id
+        )
+        .all()
+    )
+
+    running_quantity = 0
+
+    result = []
+
+    for movement in movements:
+
+        quantity_in = 0
+        quantity_out = 0
+
+        if movement.movement_type in {
+            "OPENING",
+            "PURCHASE",
+            "SALES_RETURN",
+            "ADJUSTMENT_IN"
+        }:
+
+            quantity_in = movement.quantity
+
+            running_quantity += movement.quantity
+
+        else:
+
+            quantity_out = movement.quantity
+
+            running_quantity -= movement.quantity
+
+        result.append({
+
+            "id": movement.id,
+
+            "product_id": product.id,
+
+            "sku": product.sku,
+
+            "product_name": product.name,
+
+            "movement_type":
+                movement.movement_type,
+
+            "quantity_in":
+                quantity_in,
+
+            "quantity_out":
+                quantity_out,
+
+            "unit_cost":
+                movement.unit_cost,
+
+            "movement_value":
+                round(
+                    movement.quantity
+                    * movement.unit_cost,
+                    2
+                ),
+
+            "running_quantity":
+                round(
+                    running_quantity,
+                    4
+                ),
+
+            "reference_type":
+                movement.reference_type,
+
+            "reference_id":
+                movement.reference_id,
+
+            "movement_date":
+                movement.movement_date,
+
+            "notes":
+                movement.notes
+
+        })
+
+    return result
+
+def get_inventory_summary(db: Session):
+    """
+    Return the current stock position of all active products.
+
+    Stock status:
+        OUT_OF_STOCK  -> stock <= 0
+        LOW_STOCK     -> stock > 0 and stock <= reorder level
+        IN_STOCK      -> stock > reorder level
+    """
+
+    products = (
+        db.query(Product)
+        .filter(Product.is_active == True)
+        .order_by(Product.name)
+        .all()
+    )
+
+    result = []
+
+    for product in products:
+
+        stock = get_product_stock(
+            db,
+            product.id
+        )
+
+        stock_quantity = float(
+            stock["stock_quantity"] or 0
+        )
+
+        reorder_level = float(
+            product.reorder_level or 0
+        )
+
+
+        # ------------------------------------------
+        # STOCK STATUS
+        # ------------------------------------------
+
+        if stock_quantity <= 0:
+
+            stock_status = "OUT_OF_STOCK"
+
+        elif stock_quantity <= reorder_level:
+
+            stock_status = "LOW_STOCK"
+
+        else:
+
+            stock_status = "IN_STOCK"
+
+
+        result.append({
+
+            "product_id": product.id,
+
+            "sku": product.sku,
+
+            "product_name": product.name,
+
+            "category": product.category,
+
+            "unit": product.unit,
+
+            "stock_quantity": round(
+                stock_quantity,
+                4
+            ),
+
+            "reorder_level": round(
+                reorder_level,
+                4
+            ),
+
+            "stock_status": stock_status,
+
+            "is_low_stock":
+                stock_status in {
+                    "LOW_STOCK",
+                    "OUT_OF_STOCK"
+                },
+
+        })
+
+
+    return result
+
+def get_inventory_alerts(db: Session):
+    """
+    Return inventory items that require attention.
+
+    Alert status:
+        OUT_OF_STOCK -> stock <= 0
+        LOW_STOCK    -> stock > 0 and stock <= reorder level
+
+    Products with stock above their reorder level
+    are not included.
+    """
+
+    products = (
+        db.query(Product)
+        .filter(Product.is_active == True)
+        .order_by(Product.name)
+        .all()
+    )
+
+    alerts = []
+
+    for product in products:
+
+        stock = get_product_stock(
+            db,
+            product.id
+        )
+
+        stock_quantity = float(
+            stock["stock_quantity"] or 0
+        )
+
+        reorder_level = float(
+            product.reorder_level or 0
+        )
+
+
+        # ------------------------------------------
+        # OUT OF STOCK
+        # ------------------------------------------
+
+        if stock_quantity <= 0:
+
+            stock_status = "OUT_OF_STOCK"
+
+
+        # ------------------------------------------
+        # LOW STOCK
+        # ------------------------------------------
+
+        elif stock_quantity <= reorder_level:
+
+            stock_status = "LOW_STOCK"
+
+
+        # ------------------------------------------
+        # NORMAL STOCK
+        # ------------------------------------------
+
+        else:
+
+            continue
+
+
+        alerts.append({
+
+            "product_id": product.id,
+
+            "sku": product.sku,
+
+            "product_name": product.name,
+
+            "category": product.category,
+
+            "unit": product.unit,
+
+            "stock_quantity": round(
+                stock_quantity,
+                4
+            ),
+
+            "reorder_level": round(
+                reorder_level,
+                4
+            ),
+
+            "stock_status": stock_status,
+
+            "shortage_quantity": round(
+                max(
+                    reorder_level - stock_quantity,
+                    0
+                ),
+                4
+            ),
+
+        })
+
+
+    return {
+
+        "total_alerts": len(alerts),
+
+        "out_of_stock_count": sum(
+            1
+            for item in alerts
+            if item["stock_status"] == "OUT_OF_STOCK"
+        ),
+
+        "low_stock_count": sum(
+            1
+            for item in alerts
+            if item["stock_status"] == "LOW_STOCK"
+        ),
+
+        "alerts": alerts,
+
+    }
+
+def get_stock_movements(db: Session):
+
+    movements = (
+        db.query(StockMovement)
+        .order_by(
+            StockMovement.movement_date.desc()
+        )
+        .all()
+    )
+
+    return [
+        {
+            "id": movement.id,
+            "product_id": movement.product_id,
+            "movement_type": movement.movement_type,
+            "quantity": movement.quantity,
+            "unit_cost": movement.unit_cost,
+            "reference_type": movement.reference_type,
+            "reference_id": movement.reference_id,
+            "movement_date": (
+                movement.movement_date.isoformat()
+                if movement.movement_date
+                else None
+            ),
+            "notes": movement.notes,
+        }
+        for movement in movements
+    ]
+
+# ==========================================================
+# REORDER REQUESTS
+# ==========================================================
+
+ALLOWED_REORDER_PRIORITIES = {
+    "LOW",
+    "NORMAL",
+    "HIGH",
+    "URGENT",
+}
+
+
+ALLOWED_REORDER_STATUSES = {
+    "DRAFT",
+    "REQUESTED",
+    "APPROVED",
+    "CONVERTED",
+    "CANCELLED",
+}
+
+
+def _generate_reorder_request_number(db: Session):
+    """
+    Generate sequential reorder request numbers.
+
+    Example:
+        RR-00001
+        RR-00002
+        RR-00003
+    """
+
+    last_request = (
+        db.query(ReorderRequest)
+        .order_by(ReorderRequest.id.desc())
+        .first()
+    )
+
+    if not last_request:
+        next_number = 1
+    else:
+        next_number = last_request.id + 1
+
+    return f"RR-{next_number:05d}"
+
+
+def create_reorder_request(
+    db: Session,
+    data
+):
+    """
+    Create a reorder request for a product.
+
+    The current stock position is recalculated from
+    stock movements before creating the request.
+    """
+
+    product = (
+        db.query(Product)
+        .filter(Product.id == data.product_id)
+        .first()
+    )
+
+    if not product:
+        raise ValueError(
+            f"Product {data.product_id} does not exist"
+        )
+
+    # ------------------------------------------------------
+    # VALIDATE QUANTITY
+    # ------------------------------------------------------
+
+    if data.requested_quantity <= 0:
+        raise ValueError(
+            "Requested quantity must be greater than zero"
+        )
+
+    # ------------------------------------------------------
+    # VALIDATE PRIORITY
+    # ------------------------------------------------------
+
+    priority = (
+        data.priority.strip().upper()
+        if data.priority
+        else "NORMAL"
+    )
+
+    if priority not in ALLOWED_REORDER_PRIORITIES:
+        raise ValueError(
+            "Invalid priority. Allowed values: "
+            + ", ".join(
+                sorted(ALLOWED_REORDER_PRIORITIES)
+            )
+        )
+
+    # ------------------------------------------------------
+    # CHECK EXISTING OPEN REQUEST
+    # ------------------------------------------------------
+
+    existing_request = (
+        db.query(ReorderRequest)
+        .filter(
+            ReorderRequest.product_id == product.id,
+            ReorderRequest.status.in_([
+                "DRAFT",
+                "REQUESTED",
+                "APPROVED",
+            ])
+        )
+        .first()
+    )
+
+    if existing_request:
+        raise ValueError(
+            f"An active reorder request already exists "
+            f"for this product: "
+            f"{existing_request.request_number}"
+        )
+
+    # ------------------------------------------------------
+    # CURRENT STOCK
+    # ------------------------------------------------------
+
+    stock = get_product_stock(
+        db,
+        product.id
+    )
+
+    stock_quantity = float(
+        stock["stock_quantity"] or 0
+    )
+
+    reorder_level = float(
+        product.reorder_level or 0
+    )
+
+    # ------------------------------------------------------
+    # CREATE REQUEST
+    # ------------------------------------------------------
+
+    request_number = (
+        _generate_reorder_request_number(db)
+    )
+
+    request = ReorderRequest(
+
+        request_number=request_number,
+
+        product_id=product.id,
+
+        stock_quantity=stock_quantity,
+
+        reorder_level=reorder_level,
+
+        requested_quantity=float(
+            data.requested_quantity
+        ),
+
+        unit=product.unit or "Nos",
+
+        priority=priority,
+
+        status="DRAFT",
+
+        notes=(
+            data.notes.strip()
+            if data.notes
+            else None
+        ),
+
+        created_at=datetime.now(timezone.utc),
+
+        updated_at=datetime.now(timezone.utc),
+
+    )
+
+    db.add(request)
+
+    db.commit()
+
+    db.refresh(request)
+
+    return request
+
+
+def get_reorder_requests(db: Session):
+    """
+    Return all reorder requests.
+    """
+
+    requests = (
+        db.query(ReorderRequest)
+        .order_by(
+            ReorderRequest.created_at.desc()
+        )
+        .all()
+    )
+
+    result = []
+
+    for request in requests:
+
+        product = request.product
+
+        result.append({
+
+            "id": request.id,
+
+            "request_number":
+                request.request_number,
+
+            "product_id":
+                request.product_id,
+
+            "sku":
+                product.sku if product else None,
+
+            "product_name":
+                product.name if product else None,
+
+            "category":
+                product.category if product else None,
+
+            "stock_quantity":
+                round(
+                    request.stock_quantity,
+                    4
+                ),
+
+            "reorder_level":
+                round(
+                    request.reorder_level,
+                    4
+                ),
+
+            "requested_quantity":
+                round(
+                    request.requested_quantity,
+                    4
+                ),
+
+            "unit":
+                request.unit,
+
+            "priority":
+                request.priority,
+
+            "status":
+                request.status,
+
+            "notes":
+                request.notes,
+
+            "created_at":
+                request.created_at,
+
+            "updated_at":
+                request.updated_at,
+
+        })
+
+    return result
+
+
+def get_reorder_request(
+    db: Session,
+    request_id: int
+):
+    """
+    Get a single reorder request.
+    """
+
+    request = (
+        db.query(ReorderRequest)
+        .filter(
+            ReorderRequest.id == request_id
+        )
+        .first()
+    )
+
+    if not request:
+        raise ValueError(
+            f"Reorder request {request_id} does not exist"
+        )
+
+    product = request.product
+
+    return {
+
+        "id": request.id,
+
+        "request_number":
+            request.request_number,
+
+        "product_id":
+            request.product_id,
+
+        "sku":
+            product.sku if product else None,
+
+        "product_name":
+            product.name if product else None,
+
+        "category":
+            product.category if product else None,
+
+        "stock_quantity":
+            round(
+                request.stock_quantity,
+                4
+            ),
+
+        "reorder_level":
+            round(
+                request.reorder_level,
+                4
+            ),
+
+        "requested_quantity":
+            round(
+                request.requested_quantity,
+                4
+            ),
+
+        "unit":
+            request.unit,
+
+        "priority":
+            request.priority,
+
+        "status":
+            request.status,
+
+        "notes":
+            request.notes,
+
+        "created_at":
+            request.created_at,
+
+        "updated_at":
+            request.updated_at,
+
+    }
+
+
+def update_reorder_request_status(
+    db: Session,
+    request_id: int,
+    status: str
+):
+    """
+    Update reorder request status.
+    """
+
+    request = (
+        db.query(ReorderRequest)
+        .filter(
+            ReorderRequest.id == request_id
+        )
+        .first()
+    )
+
+    if not request:
+        raise ValueError(
+            f"Reorder request {request_id} does not exist"
+        )
+
+    new_status = (
+        status.strip().upper()
+        if status
+        else ""
+    )
+
+    if new_status not in ALLOWED_REORDER_STATUSES:
+        raise ValueError(
+            "Invalid status. Allowed values: "
+            + ", ".join(
+                sorted(ALLOWED_REORDER_STATUSES)
+            )
+        )
+
+    # ------------------------------------------------------
+    # BASIC STATUS RULES
+    # ------------------------------------------------------
+
+    if request.status == "CONVERTED":
+        raise ValueError(
+            "A converted reorder request cannot be changed"
+        )
+
+    if request.status == "CANCELLED":
+        raise ValueError(
+            "A cancelled reorder request cannot be changed"
+        )
+
+    request.status = new_status
+
+    request.updated_at = datetime.now(
+        timezone.utc
+    )
+
+    db.commit()
+
+    db.refresh(request)
+
+    return request
+
+
+# ============================================================
+# INVENTORY REPORTS — STOCK MOVEMENT REPORT
+# ============================================================
+
+INWARD_MOVEMENT_TYPES = {
+    "OPENING",
+    "PURCHASE",
+    "SALES_RETURN",
+    "ADJUSTMENT_IN",
+}
+
+OUTWARD_MOVEMENT_TYPES = {
+    "SALE",
+    "PURCHASE_RETURN",
+    "ADJUSTMENT_OUT",
+}
+
+
+def get_stock_movement_report(
+    db: Session,
+    start_date: date = None,
+    end_date: date = None,
+    product_id: int = None,
+    movement_type: str = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """
+    Return a filterable stock movement report.
+
+    Filters:
+        start_date
+        end_date
+        product_id
+        movement_type
+
+    Includes:
+        Paginated movement records
+        Product details
+        Inward and outward quantities
+        Inward and outward movement values
+    """
+
+    # --------------------------------------------------------
+    # VALIDATE FILTERS
+    # --------------------------------------------------------
+
+    if start_date and end_date and start_date > end_date:
+        raise ValueError(
+            "Start date cannot be after end date"
+        )
+
+    if limit < 1 or limit > 500:
+        raise ValueError(
+            "Limit must be between 1 and 500"
+        )
+
+    if offset < 0:
+        raise ValueError(
+            "Offset cannot be negative"
+        )
+
+    if movement_type:
+        movement_type = movement_type.strip().upper()
+
+        if movement_type not in ALLOWED_STOCK_MOVEMENT_TYPES:
+            raise ValueError(
+                "Invalid movement type. Allowed values: "
+                + ", ".join(sorted(ALLOWED_STOCK_MOVEMENT_TYPES))
+            )
+
+    # --------------------------------------------------------
+    # BUILD FILTERS
+    # --------------------------------------------------------
+
+    filters = []
+
+    if start_date:
+        start_datetime = datetime.combine(
+            start_date,
+            time.min
+        )
+
+        filters.append(
+            StockMovement.movement_date >= start_datetime
+        )
+
+    if end_date:
+        # Exclusive upper boundary includes the entire end date.
+        end_datetime = datetime.combine(
+            end_date + timedelta(days=1),
+            time.min
+        )
+
+        filters.append(
+            StockMovement.movement_date < end_datetime
+        )
+
+    if product_id is not None:
+        product = (
+            db.query(Product)
+            .filter(Product.id == product_id)
+            .first()
+        )
+
+        if not product:
+            raise ValueError(
+                f"Product {product_id} does not exist"
+            )
+
+        filters.append(
+            StockMovement.product_id == product_id
+        )
+
+    if movement_type:
+        filters.append(
+            StockMovement.movement_type == movement_type
+        )
+
+    # --------------------------------------------------------
+    # SUMMARY FOR ALL MATCHING RECORDS
+    # --------------------------------------------------------
+
+    total_records = (
+        db.query(func.count(StockMovement.id))
+        .filter(*filters)
+        .scalar()
+        or 0
+    )
+
+    inward_quantity_expr = case(
+        (
+            StockMovement.movement_type.in_(
+                INWARD_MOVEMENT_TYPES
+            ),
+            StockMovement.quantity,
+        ),
+        else_=0,
+    )
+
+    outward_quantity_expr = case(
+        (
+            StockMovement.movement_type.in_(
+                OUTWARD_MOVEMENT_TYPES
+            ),
+            StockMovement.quantity,
+        ),
+        else_=0,
+    )
+
+    inward_value_expr = case(
+        (
+            StockMovement.movement_type.in_(
+                INWARD_MOVEMENT_TYPES
+            ),
+            StockMovement.quantity * StockMovement.unit_cost,
+        ),
+        else_=0,
+    )
+
+    outward_value_expr = case(
+        (
+            StockMovement.movement_type.in_(
+                OUTWARD_MOVEMENT_TYPES
+            ),
+            StockMovement.quantity * StockMovement.unit_cost,
+        ),
+        else_=0,
+    )
+
+    totals = (
+        db.query(
+            func.coalesce(
+                func.sum(inward_quantity_expr), 0
+            ).label("inward_quantity"),
+
+            func.coalesce(
+                func.sum(outward_quantity_expr), 0
+            ).label("outward_quantity"),
+
+            func.coalesce(
+                func.sum(inward_value_expr), 0
+            ).label("inward_value"),
+
+            func.coalesce(
+                func.sum(outward_value_expr), 0
+            ).label("outward_value"),
+        )
+        .filter(*filters)
+        .one()
+    )
+
+    # --------------------------------------------------------
+    # FETCH PAGINATED MOVEMENTS
+    # --------------------------------------------------------
+
+    rows = (
+        db.query(StockMovement, Product)
+        .join(
+            Product,
+            Product.id == StockMovement.product_id
+        )
+        .filter(*filters)
+        .order_by(
+            StockMovement.movement_date.desc(),
+            StockMovement.id.desc()
+        )
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    movements = []
+
+    for movement, product in rows:
+        movements.append({
+            "id": movement.id,
+            "product_id": movement.product_id,
+            "sku": product.sku,
+            "product_name": product.name,
+            "category": product.category,
+            "movement_type": movement.movement_type,
+            "quantity": round(float(movement.quantity or 0), 4),
+            "unit_cost": round(float(movement.unit_cost or 0), 2),
+            "movement_value": round(
+                float(movement.quantity or 0)
+                * float(movement.unit_cost or 0),
+                2,
+            ),
+            "reference_type": movement.reference_type,
+            "reference_id": movement.reference_id,
+            "movement_date": (
+                movement.movement_date.isoformat()
+                if movement.movement_date
+                else None
+            ),
+            "notes": movement.notes,
+        })
+
+    # --------------------------------------------------------
+    # RESPONSE
+    # --------------------------------------------------------
+
+    return {
+        "filters": {
+            "start_date": (
+                start_date.isoformat() if start_date else None
+            ),
+            "end_date": (
+                end_date.isoformat() if end_date else None
+            ),
+            "product_id": product_id,
+            "movement_type": movement_type,
+        },
+        "pagination": {
+            "total_records": total_records,
+            "limit": limit,
+            "offset": offset,
+            "returned_records": len(movements),
+        },
+        "summary": {
+            "total_movements": total_records,
+            "total_inward_quantity": round(
+                float(totals.inward_quantity or 0), 4
+            ),
+            "total_outward_quantity": round(
+                float(totals.outward_quantity or 0), 4
+            ),
+            "total_inward_value": round(
+                float(totals.inward_value or 0), 2
+            ),
+            "total_outward_value": round(
+                float(totals.outward_value or 0), 2
+            ),
+        },
+        "movements": movements,
+    }
 
 #for EBITDA
 def get_ebitda(db: Session):
